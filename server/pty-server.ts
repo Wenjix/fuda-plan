@@ -73,7 +73,7 @@ function probeTool(tool: string): TerminalToolStatus {
     return status;
   }
 
-  status.apiKeyConfigured = !!process.env.MISTRAL_API_KEY;
+  status.apiKeyConfigured = !!(process.env.MISTRAL_API_KEY || process.env.VITE_MISTRAL_API_KEY);
   if (!status.apiKeyConfigured) status.setupRequired = true;
 
   try {
@@ -117,12 +117,18 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
           const shell = process.env.SHELL || '/bin/zsh';
+          // Build env for the PTY, mapping VITE_MISTRAL_API_KEY → MISTRAL_API_KEY
+          // so that `vibe` CLI can find the key regardless of which name was used
+          const ptyEnv = { ...process.env } as Record<string, string>;
+          if (!ptyEnv.MISTRAL_API_KEY && ptyEnv.VITE_MISTRAL_API_KEY) {
+            ptyEnv.MISTRAL_API_KEY = ptyEnv.VITE_MISTRAL_API_KEY;
+          }
           pty = ptySpawn(shell, [], {
             name: 'xterm-256color',
             cols: msg.cols ?? 80,
             rows: msg.rows ?? 24,
             cwd: msg.cwd || process.env.HOME || '/',
-            env: process.env as Record<string, string>,
+            env: ptyEnv,
           });
 
           pty.onData((data: string) => {

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "tsx --watch server/pty-server.ts",
-    "dev:full": "concurrently \"tsx --watch server/pty-server.ts\" \"vite\"",
+    "dev:server": "tsx --env-file=.env --watch server/pty-server.ts",
+    "dev:full": "concurrently \"tsx --env-file=.env --watch server/pty-server.ts\" \"vite\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
