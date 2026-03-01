@@ -7,7 +7,7 @@ export type SessionEvent =
   | { type: 'SYNTHESIS_COMPLETED' }
   | { type: 'RESET_TO_EXPLORING' }
 
-const SYNTHESIS_THRESHOLD = 3
+export const SYNTHESIS_THRESHOLD = 3
 
 export function sessionTransition(
   current: SessionStatus,
