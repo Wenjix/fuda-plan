@@ -6,11 +6,18 @@ import { PathTypeSchema } from '../types/primitives'
 
 // LLM response schemas per job type (shapes the LLM is expected to return)
 
+const BranchQualityResponseSchema = z.object({
+  novelty: z.number().min(0).max(1),
+  specificity: z.number().min(0).max(1),
+  challenge: z.number().min(0).max(1),
+})
+
 const BranchResponseSchema = z.object({
-  questions: z.array(
+  branches: z.array(
     z.object({
       question: z.string().min(1),
       pathType: PathTypeSchema,
+      quality: BranchQualityResponseSchema,
     }),
   ).min(1).max(6),
 })
@@ -27,12 +34,14 @@ const DialogueTurnResponseSchema = z.object({
 })
 
 const PathQuestionsResponseSchema = z.object({
-  questions: z.array(
-    z.object({
-      question: z.string().min(1),
-      pathType: PathTypeSchema,
-    }),
-  ).min(1).max(6),
+  paths: z.object({
+    'clarify': z.string().min(1),
+    'go-deeper': z.string().min(1),
+    'challenge': z.string().min(1),
+    'apply': z.string().min(1),
+    'connect': z.string().min(1),
+    'surprise': z.string().min(1),
+  }),
 })
 
 const PairwiseMapResponseSchema = z.object({

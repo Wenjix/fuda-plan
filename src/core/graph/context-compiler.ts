@@ -4,6 +4,12 @@ import { estimateTokens } from '../../utils/tokens'
 
 const DEFAULT_TOKEN_BUDGET = 4000
 
+// Tiered budget allocation (spec section)
+const ROOT_RESERVE = 300
+const ANCESTOR_RATIO = 0.6
+const SIBLING_RATIO = 0.3
+const COUSIN_RATIO = 0.1
+
 function formatNodeContent(node: SemanticNode): string {
   const parts = [node.question]
   if (node.answer) {
@@ -24,29 +30,74 @@ export function compileContext(
   const entries: ContextEntry[] = []
   let usedTokens = 0
 
-  // 1. Ancestors (highest priority) — pack nearest first
+  // ancestors[0] = nearest, ancestors[last] = root
   const ancestors = getAncestorChain(targetNodeId, nodeMap, index)
-  for (let i = 0; i < ancestors.length; i++) {
+
+  // 0. Reserve root — always included if it fits within budget
+  let rootEntry: ContextEntry | null = null
+  let rootTokens = 0
+  if (ancestors.length > 0) {
+    const root = ancestors[ancestors.length - 1]
+    const rootContent = formatNodeContent(root)
+    rootTokens = estimateTokens(rootContent)
+    if (rootTokens <= tokenBudget) {
+      rootEntry = {
+        nodeId: root.id,
+        role: 'ancestor',
+        distanceFromTarget: ancestors.length,
+        content: rootContent,
+        tokenEstimate: rootTokens,
+      }
+      usedTokens += rootTokens
+    }
+  }
+
+  // Tiered budgets after root reserve
+  const remainingBudget = Math.max(0, tokenBudget - ROOT_RESERVE - rootTokens)
+  let ancestorBudget = Math.floor(remainingBudget * ANCESTOR_RATIO)
+  let siblingBudget = Math.floor(remainingBudget * SIBLING_RATIO)
+  let cousinBudget = Math.floor(remainingBudget * COUSIN_RATIO)
+
+  // 1. Ancestors (highest priority) — pack nearest first, skip root (handled separately)
+  let ancestorUsed = 0
+  let ancestorsOmitted = 0
+  const ancestorEntries: ContextEntry[] = []
+  for (let i = 0; i < ancestors.length - 1; i++) {
     const node = ancestors[i]
     const content = formatNodeContent(node)
     const tokens = estimateTokens(content)
-    if (usedTokens + tokens > tokenBudget) break
-    entries.push({
+    if (ancestorUsed + tokens > ancestorBudget) {
+      ancestorsOmitted++
+      continue
+    }
+    ancestorEntries.push({
       nodeId: node.id,
       role: 'ancestor',
       distanceFromTarget: i + 1,
       content,
       tokenEstimate: tokens,
     })
+    ancestorUsed += tokens
     usedTokens += tokens
   }
 
+  // Add ancestors in order: nearest-first, then root at end
+  entries.push(...ancestorEntries)
+  if (rootEntry) {
+    entries.push(rootEntry)
+  }
+
+  // Surplus rollover: unused ancestor budget flows to siblings
+  const ancestorSurplus = ancestorBudget - ancestorUsed
+  siblingBudget += ancestorSurplus
+
   // 2. Siblings (medium priority) — if budget allows
+  let siblingUsed = 0
   const siblings = getSiblings(targetNodeId, nodeMap, index)
   for (const sibling of siblings) {
     const content = formatNodeContent(sibling)
     const tokens = estimateTokens(content)
-    if (usedTokens + tokens > tokenBudget) break
+    if (siblingUsed + tokens > siblingBudget) break
     entries.push({
       nodeId: sibling.id,
       role: 'sibling',
@@ -54,10 +105,16 @@ export function compileContext(
       content,
       tokenEstimate: tokens,
     })
+    siblingUsed += tokens
     usedTokens += tokens
   }
 
+  // Surplus rollover: unused sibling budget flows to cousins
+  const siblingSurplus = siblingBudget - siblingUsed
+  cousinBudget += siblingSurplus
+
   // 3. Cousins (lowest priority) — question-only, if budget remains
+  let cousinUsed = 0
   const parentId = index.parentOf.get(targetNodeId)
   if (parentId) {
     const parentSiblingIds = getSiblings(parentId, nodeMap, index).map((s) => s.id)
@@ -68,7 +125,7 @@ export function compileContext(
         if (!cousin) continue
         const content = cousin.question
         const tokens = estimateTokens(content)
-        if (usedTokens + tokens > tokenBudget) break
+        if (cousinUsed + tokens > cousinBudget) break
         entries.push({
           nodeId: cousin.id,
           role: 'cousin',
@@ -76,13 +133,14 @@ export function compileContext(
           content,
           tokenEstimate: tokens,
         })
+        cousinUsed += tokens
         usedTokens += tokens
       }
     }
   }
 
   // 4. Format into prompt string
-  const formatted = formatContextForPrompt(entries, targetNodeId, nodeMap)
+  const formatted = formatContextForPrompt(entries, targetNodeId, nodeMap, ancestorsOmitted)
 
   return {
     entries,
@@ -96,12 +154,17 @@ function formatContextForPrompt(
   entries: ContextEntry[],
   targetNodeId: string,
   nodeMap: Map<string, SemanticNode>,
+  ancestorsOmitted: number = 0,
 ): string {
   const lines = ['[GRAPH CONTEXT]']
 
   const ancestors = entries
     .filter((e) => e.role === 'ancestor')
     .sort((a, b) => b.distanceFromTarget - a.distanceFromTarget) // Root first
+
+  if (ancestorsOmitted > 0) {
+    lines.push(`- [${ancestorsOmitted} ancestor${ancestorsOmitted > 1 ? 's' : ''} omitted]`)
+  }
 
   for (const entry of ancestors) {
     const label = entry.distanceFromTarget === ancestors.length ? 'Root' : 'Ancestor'

@@ -33,22 +33,22 @@ describe('validateOutput', () => {
   describe('branch job type', () => {
     it('passes for valid branch response', () => {
       const result = validateOutput('branch', {
-        questions: [
-          { question: 'How does X work?', pathType: 'go-deeper' },
-          { question: 'What if Y?', pathType: 'challenge' },
+        branches: [
+          { question: 'How does X work?', pathType: 'go-deeper', quality: { novelty: 0.8, specificity: 0.7, challenge: 0.6 } },
+          { question: 'What if Y?', pathType: 'challenge', quality: { novelty: 0.5, specificity: 0.6, challenge: 0.9 } },
         ],
       })
       expect(result.success).toBe(true)
     })
 
-    it('fails for empty questions array', () => {
-      const result = validateOutput('branch', { questions: [] })
+    it('fails for empty branches array', () => {
+      const result = validateOutput('branch', { branches: [] })
       expect(result.success).toBe(false)
     })
 
     it('fails for invalid pathType', () => {
       const result = validateOutput('branch', {
-        questions: [{ question: 'Something', pathType: 'invalid' }],
+        branches: [{ question: 'Something', pathType: 'invalid', quality: { novelty: 0.5, specificity: 0.5, challenge: 0.5 } }],
       })
       expect(result.success).toBe(false)
     })
@@ -107,10 +107,14 @@ describe('validateOutput', () => {
   describe('path_questions job type', () => {
     it('passes for valid path questions', () => {
       const result = validateOutput('path_questions', {
-        questions: [
-          { question: 'Clarify this', pathType: 'clarify' },
-          { question: 'Go deeper', pathType: 'go-deeper' },
-        ],
+        paths: {
+          'clarify': 'Clarify this aspect',
+          'go-deeper': 'Go deeper into this',
+          'challenge': 'Challenge this assumption',
+          'apply': 'How does this apply?',
+          'connect': 'What connects to this?',
+          'surprise': 'What unexpected angle exists?',
+        },
       })
       expect(result.success).toBe(true)
     })

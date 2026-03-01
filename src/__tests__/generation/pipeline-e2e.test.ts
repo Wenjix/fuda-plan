@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { generate } from '../../generation/pipeline'
+import { resetForTesting } from '../../generation/rate-limiter'
 import type { SemanticNode, SemanticEdge, PlanningSession, ModelLane } from '../../core/types'
 
 const now = '2026-03-01T00:00:00.000+00:00'
@@ -60,6 +61,10 @@ const edges: SemanticEdge[] = [
 ]
 
 describe('generate (pipeline e2e with mock provider)', () => {
+  beforeEach(() => {
+    resetForTesting()
+  })
+
   it('generates an answer using mock provider', async () => {
     const result = await generate({
       targetNodeId: childId,

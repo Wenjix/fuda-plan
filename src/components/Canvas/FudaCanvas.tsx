@@ -6,6 +6,7 @@ import { useSessionStore } from '../../store/session-store';
 import { useViewStore } from '../../store/view-store';
 import { projectToReactFlow } from '../../store/view-projection';
 import { ExplorationCard } from '../ExplorationCard/ExplorationCard';
+import { PlanCard } from '../PlanCard/PlanCard';
 import { Connector } from '../shared/Connector';
 import { useMemo, useCallback } from 'react';
 
@@ -18,7 +19,7 @@ export function FudaCanvas() {
   // Stable references for nodeTypes and edgeTypes to avoid React Flow re-registration
   const nodeTypes: NodeTypes = useMemo(() => ({
     explorationCard: ExplorationCard,
-    planCard: ExplorationCard, // placeholder until PlanCard exists
+    planCard: PlanCard,
   }), []);
 
   const edgeTypes: EdgeTypes = useMemo(() => ({

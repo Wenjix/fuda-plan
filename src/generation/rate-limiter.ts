@@ -133,3 +133,9 @@ export async function handleRateLimit(response: Response): Promise<number> {
 // Singleton instances
 export const rateLimiter = new TokenBucketRateLimiter();
 export const concurrencyController = new ConcurrencyController();
+
+/** Reset singletons for testing — refills rate limiter tokens to max. */
+export function resetForTesting(): void {
+  (rateLimiter as { tokens: number; lastRefill: number }).tokens = 3;
+  (rateLimiter as { lastRefill: number }).lastRefill = Date.now();
+}

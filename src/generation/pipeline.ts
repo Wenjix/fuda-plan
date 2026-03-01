@@ -9,6 +9,7 @@ import { compileContext } from '../core/graph/context-compiler';
 import { buildPrompt } from './prompts';
 import { getProvider } from './providers';
 import { parseAndValidate } from '../core/validation/schema-gates';
+import { rateLimiter } from './rate-limiter';
 
 export interface GenerateOptions {
   targetNodeId: string;
@@ -52,12 +53,15 @@ export async function generate(
     personaId,
   );
 
-  // 4. Call provider
+  // 4. Acquire rate limiter token before calling provider
+  await rateLimiter.acquire();
+
+  // 5. Call provider
   const provider = getProvider(options.apiKey);
   const raw = options.onChunk
     ? await provider.generateStream(prompt, options.onChunk)
     : await provider.generate(prompt);
 
-  // 5. Parse + validate
+  // 6. Parse + validate
   return parseAndValidate(options.jobType, raw);
 }

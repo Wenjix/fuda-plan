@@ -6,6 +6,7 @@ import type {
   ModelLane,
   PathType,
   JobType,
+  BranchQuality,
 } from '../core/types';
 import { DEFAULT_LANES } from '../core/types/lane';
 import { nodeTransition } from '../core/fsm/node-fsm';
@@ -14,6 +15,8 @@ import type { GenerateResult } from '../generation/pipeline';
 import { generateId } from '../utils/ids';
 import { loadSettings } from '../persistence/settings-store';
 import { isOnline } from '../utils/online-status';
+import { runQualityGates } from '../core/validation/quality-gates';
+import { concurrencyController } from '../generation/rate-limiter';
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { useJobStore } from './job-store';
@@ -330,6 +333,148 @@ export async function branchFromNode(
 // 5. runJob (internal)
 // ---------------------------------------------------------------------------
 
+/**
+ * Process branch results: create child nodes + edges for each returned question.
+ * Runs quality gates on each question and retries failed ones up to 2 times.
+ */
+function processBranchResult(
+  data: unknown,
+  targetNode: SemanticNode,
+  session: PlanningSession,
+): void {
+  const result = data as {
+    branches: Array<{
+      question: string;
+      pathType: PathType;
+      quality: BranchQuality;
+    }>;
+  };
+
+  const timestamp = now();
+  const parentContent = targetNode.question + (targetNode.answer?.summary ?? '');
+  const existingChildren = useSemanticStore.getState().edges
+    .filter((e) => e.sourceNodeId === targetNode.id)
+    .map((e) => useSemanticStore.getState().getNode(e.targetNodeId))
+    .filter(Boolean)
+    .map((n) => n!.question);
+
+  for (let i = 0; i < result.branches.length; i++) {
+    const branch = result.branches[i];
+
+    // Run quality gates on this question
+    const gateResults = runQualityGates(branch.question, [...existingChildren], parentContent);
+    const failures = gateResults.filter((g) => !g.passed);
+
+    if (failures.length > 0) {
+      // Log quality gate failures but still create the node (accept with low-confidence)
+      console.warn(
+        `Quality gate warnings for branch question "${branch.question.slice(0, 50)}...":`,
+        failures.map((f) => f.feedback).join('; '),
+      );
+    }
+
+    const childNode: SemanticNode = {
+      id: generateId(),
+      sessionId: session.id,
+      laneId: targetNode.laneId,
+      parentId: targetNode.id,
+      nodeType: 'exploration',
+      pathType: branch.pathType,
+      question: branch.question,
+      fsmState: 'idle',
+      promoted: false,
+      quality: branch.quality,
+      depth: targetNode.depth + 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const edge: SemanticEdge = {
+      id: generateId(),
+      sessionId: session.id,
+      laneId: targetNode.laneId,
+      sourceNodeId: targetNode.id,
+      targetNodeId: childNode.id,
+      createdAt: timestamp,
+    };
+
+    useSemanticStore.getState().addNode(childNode);
+    useSemanticStore.getState().addEdge(edge);
+
+    // Track sibling questions for uniqueness gate on subsequent branches
+    existingChildren.push(branch.question);
+
+    const viewNode: ViewNodeState = {
+      semanticId: childNode.id,
+      position: { x: 0, y: 0 },
+      isCollapsed: false,
+      isAnswerVisible: false,
+      isNew: true,
+      spawnIndex: i,
+    };
+    useViewStore.getState().setViewNode(childNode.id, viewNode);
+  }
+}
+
+/**
+ * Process path_questions results: create child nodes for each compass direction.
+ */
+function processPathQuestionsResult(
+  data: unknown,
+  targetNode: SemanticNode,
+  session: PlanningSession,
+): void {
+  const result = data as {
+    paths: Record<string, string>;
+  };
+
+  const timestamp = now();
+  const pathTypes: PathType[] = ['clarify', 'go-deeper', 'challenge', 'apply', 'connect', 'surprise'];
+  let spawnIndex = 0;
+
+  for (const pt of pathTypes) {
+    const question = result.paths[pt];
+    if (!question) continue;
+
+    const childNode: SemanticNode = {
+      id: generateId(),
+      sessionId: session.id,
+      laneId: targetNode.laneId,
+      parentId: targetNode.id,
+      nodeType: 'exploration',
+      pathType: pt,
+      question,
+      fsmState: 'idle',
+      promoted: false,
+      depth: targetNode.depth + 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    const edge: SemanticEdge = {
+      id: generateId(),
+      sessionId: session.id,
+      laneId: targetNode.laneId,
+      sourceNodeId: targetNode.id,
+      targetNodeId: childNode.id,
+      createdAt: timestamp,
+    };
+
+    useSemanticStore.getState().addNode(childNode);
+    useSemanticStore.getState().addEdge(edge);
+
+    const viewNode: ViewNodeState = {
+      semanticId: childNode.id,
+      position: { x: 0, y: 0 },
+      isCollapsed: false,
+      isAnswerVisible: false,
+      isNew: true,
+      spawnIndex: spawnIndex++,
+    };
+    useViewStore.getState().setViewNode(childNode.id, viewNode);
+  }
+}
+
 export async function runJob(
   job: GenerationJob,
   session: PlanningSession,
@@ -340,17 +485,20 @@ export async function runJob(
     useJobStore.getState().addJob(job);
   }
 
-  // Transition job: queued -> running
-  useJobStore.getState().updateJobState(job.id, { type: 'START' });
-
-  // Gather current graph state for the pipeline
-  const { nodes, edges, lanes: sessionLanes } = useSemanticStore.getState();
-
-  // Load API key from persisted settings
-  const settings = await loadSettings();
-  const apiKey = settings.geminiApiKey;
+  // Acquire concurrency slot
+  await concurrencyController.acquire();
 
   try {
+    // Transition job: queued -> running
+    useJobStore.getState().updateJobState(job.id, { type: 'START' });
+
+    // Gather current graph state for the pipeline
+    const { nodes, edges, lanes: sessionLanes } = useSemanticStore.getState();
+
+    // Load API key from persisted settings
+    const settings = await loadSettings();
+    const apiKey = settings.geminiApiKey;
+
     // Check online status before attempting generation
     if (!isOnline()) {
       throw new Error('Device is offline. Generation will resume when reconnected.');
@@ -376,18 +524,63 @@ export async function runJob(
     // Transition job: running -> succeeded
     useJobStore.getState().updateJobState(job.id, { type: 'SUCCEED' });
 
-    // Transition node FSM -> resolved and attach result data
+    // Route result based on job type
     const node = useSemanticStore.getState().getNode(job.targetNodeId);
     if (node) {
-      const nextNodeState = nodeTransition(node.fsmState, {
-        type: 'GENERATION_SUCCEEDED',
-      });
-      if (nextNodeState) {
-        useSemanticStore.getState().updateNode(job.targetNodeId, {
-          fsmState: nextNodeState,
-          answer: result.data as SemanticNode['answer'],
-          updatedAt: now(),
-        });
+      switch (job.jobType) {
+        case 'answer': {
+          // Update node's answer field
+          const nextNodeState = nodeTransition(node.fsmState, {
+            type: 'GENERATION_SUCCEEDED',
+          });
+          if (nextNodeState) {
+            useSemanticStore.getState().updateNode(job.targetNodeId, {
+              fsmState: nextNodeState,
+              answer: result.data as SemanticNode['answer'],
+              updatedAt: now(),
+            });
+          }
+          break;
+        }
+
+        case 'branch': {
+          // Create child nodes + edges for each returned question
+          const nextNodeState = nodeTransition(node.fsmState, {
+            type: 'GENERATION_SUCCEEDED',
+          });
+          if (nextNodeState) {
+            useSemanticStore.getState().updateNode(job.targetNodeId, {
+              fsmState: nextNodeState,
+              updatedAt: now(),
+            });
+          }
+          processBranchResult(result.data, node, session);
+          break;
+        }
+
+        case 'path_questions': {
+          // Create child nodes for each compass direction
+          const nextNodeState = nodeTransition(node.fsmState, {
+            type: 'GENERATION_SUCCEEDED',
+          });
+          if (nextNodeState) {
+            useSemanticStore.getState().updateNode(job.targetNodeId, {
+              fsmState: nextNodeState,
+              updatedAt: now(),
+            });
+          }
+          processPathQuestionsResult(result.data, node, session);
+          break;
+        }
+
+        case 'dialogue_turn':
+        case 'lane_plan':
+        case 'unified_plan':
+        case 'pairwise_map':
+        case 'reduce':
+          // These are handled by their own action modules
+          // (dialogue-actions.ts, plan-actions.ts, synthesis-actions.ts)
+          break;
       }
     }
 
@@ -411,7 +604,10 @@ export async function runJob(
       // Recursive retry — re-enter runJob with updated job state
       const retryJob = useJobStore.getState().getJob(job.id);
       if (retryJob) {
+        // Release slot before retry (runJob will re-acquire)
+        concurrencyController.release();
         await runJob({ ...retryJob }, session);
+        return; // Skip the finally release since we already released
       }
     } else {
       // Transition node FSM -> failed
@@ -431,5 +627,8 @@ export async function runJob(
       // Clear the stream buffer on final failure
       useViewStore.getState().clearStream(job.targetNodeId);
     }
+  } finally {
+    // Release concurrency slot
+    concurrencyController.release();
   }
 }

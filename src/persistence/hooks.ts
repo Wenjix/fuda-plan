@@ -1,6 +1,17 @@
 import { useSemanticStore } from '../store/semantic-store';
 import { useSessionStore } from '../store/session-store';
 import { putEntity, loadSessionEnvelope, getAllByIndex } from './repository';
+import {
+  PlanningSessionSchema,
+  ModelLaneSchema,
+  SemanticNodeSchema,
+  SemanticEdgeSchema,
+  PromotionSchema,
+  LanePlanSchema,
+  UnifiedPlanSchema,
+  DialogueTurnSchema,
+} from '../core/types';
+import type { z } from 'zod';
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -54,27 +65,76 @@ export function startAutoSave(): () => void {
 }
 
 /**
+ * Validate an array of entities against a Zod schema.
+ * Returns only valid entities; logs warnings for invalid ones.
+ */
+function validateEntities<T>(
+  entities: unknown[],
+  schema: z.ZodType<T>,
+  entityName: string,
+): T[] {
+  const valid: T[] = [];
+  for (const entity of entities) {
+    const result = schema.safeParse(entity);
+    if (result.success) {
+      valid.push(result.data);
+    } else {
+      const id = (entity as Record<string, unknown>)?.id ?? 'unknown';
+      console.warn(
+        `Invalid ${entityName} (id=${id}) loaded from IDB, skipping:`,
+        result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      );
+    }
+  }
+  return valid;
+}
+
+/**
  * Load a session from IDB and hydrate the stores.
  * Returns true if successfully loaded, false if session not found.
+ * Validates all entities with Zod schemas (graceful degradation: invalid entities are skipped).
  */
 export async function restoreSession(sessionId: string): Promise<boolean> {
   try {
     const envelope = await loadSessionEnvelope(sessionId);
 
+    // Validate session entity
+    const sessionResult = PlanningSessionSchema.safeParse(envelope.session);
+    if (!sessionResult.success) {
+      console.warn('Invalid session data from IDB:', sessionResult.error.issues);
+      return false;
+    }
+    const session = sessionResult.data;
+
+    // Validate all entity arrays with Zod (graceful degradation)
+    const lanes = validateEntities(envelope.lanes, ModelLaneSchema, 'lane');
+    const nodes = validateEntities(envelope.nodes, SemanticNodeSchema, 'node');
+    const edges = validateEntities(envelope.edges, SemanticEdgeSchema, 'edge');
+    const promotions = validateEntities(envelope.promotions, PromotionSchema, 'promotion');
+    const lanePlans = validateEntities(envelope.lanePlans, LanePlanSchema, 'lanePlan');
+    const unifiedPlans = validateEntities(envelope.unifiedPlans, UnifiedPlanSchema, 'unifiedPlan');
+    const dialogueTurns = validateEntities(envelope.dialogueTurns, DialogueTurnSchema, 'dialogueTurn');
+
     // Hydrate session store
-    useSessionStore.getState().setSession(envelope.session);
-    useSessionStore.getState().setActiveLane(envelope.session.activeLaneId);
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setActiveLane(session.activeLaneId);
     useSessionStore.getState().setUIMode('exploring');
+
+    // Auto-open plan panel for sessions that were in planning states
+    const status = session.status;
+    if (status === 'lane_planning' || status === 'synthesis_ready' || status === 'synthesized') {
+      useSessionStore.getState().setPlanPanelOpen(true);
+    }
 
     // Hydrate semantic store
     useSemanticStore.getState().loadSession({
-      nodes: envelope.nodes,
-      edges: envelope.edges,
-      promotions: envelope.promotions,
-      lanes: envelope.lanes,
-      lanePlans: envelope.lanePlans,
-      unifiedPlan: envelope.unifiedPlans[0] ?? null,
-      dialogueTurns: envelope.dialogueTurns,
+      nodes,
+      edges,
+      promotions,
+      lanes,
+      lanePlans,
+      unifiedPlan: unifiedPlans[0] ?? null,
+      dialogueTurns,
     });
 
     return true;

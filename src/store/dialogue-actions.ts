@@ -2,6 +2,7 @@ import type { DialecticMode, DialogueTurn, ChallengeDepth } from '../core/types'
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { useViewStore } from './view-store';
+import { useToastStore } from './toast-store';
 import { generateId } from '../utils/ids';
 import { compileContext } from '../core/graph/context-compiler';
 import { buildDialoguePrompt, buildConcludeSynthesisPrompt } from '../generation/prompts/dialogue';
@@ -69,9 +70,19 @@ export async function generateDialogueResponse(
   const challengeDepth = useSessionStore.getState().challengeDepth;
 
   // Apply defensive user detection
-  const effectiveDepth = detectDefensiveUser(turns)
+  const isDefensive = detectDefensiveUser(turns);
+  const effectiveDepth = isDefensive
     ? backOffDepth(challengeDepth)
     : challengeDepth;
+
+  // Persist backed-off depth and notify user
+  if (isDefensive && effectiveDepth !== challengeDepth) {
+    useSessionStore.getState().setChallengeDepth(effectiveDepth);
+    useToastStore.getState().addToast(
+      'Easing challenge depth based on conversation flow.',
+      'info',
+    );
+  }
 
   // Compile context
   const context = compileContext(nodeId, nodes, edges);
