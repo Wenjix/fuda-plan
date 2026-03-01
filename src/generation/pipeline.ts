@@ -3,6 +3,7 @@ import type {
   SemanticNode,
   SemanticEdge,
   PlanningSession,
+  ModelLane,
 } from '../core/types';
 import { compileContext } from '../core/graph/context-compiler';
 import { buildPrompt } from './prompts';
@@ -15,11 +16,21 @@ export interface GenerateOptions {
   nodes: SemanticNode[];
   edges: SemanticEdge[];
   session: PlanningSession;
-  apiKey?: string;
+  lanes: ModelLane[];
+  apiKey: string;
   onChunk?: (delta: string) => void;
 }
 
-export async function generate(options: GenerateOptions): Promise<unknown> {
+export interface GenerateResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  feedback: string;
+}
+
+export async function generate(
+  options: GenerateOptions,
+): Promise<GenerateResult> {
   // 1. Compile context from graph
   const context = compileContext(
     options.targetNodeId,
@@ -27,20 +38,26 @@ export async function generate(options: GenerateOptions): Promise<unknown> {
     options.edges,
   );
 
-  // 2. Build prompt with context + persona
-  const prompt = buildPrompt(options.jobType, context, options.session);
+  // 2. Resolve persona from active lane
+  const activeLane = options.lanes.find(
+    (l) => l.id === options.session.activeLaneId,
+  );
+  const personaId = activeLane?.personaId ?? 'analytical';
 
-  // 3. Call provider
-  const provider = getProvider(options.apiKey ?? options.session.id);
+  // 3. Build prompt with context + persona
+  const prompt = buildPrompt(
+    options.jobType,
+    context,
+    options.session,
+    personaId,
+  );
+
+  // 4. Call provider
+  const provider = getProvider(options.apiKey);
   const raw = options.onChunk
     ? await provider.generateStream(prompt, options.onChunk)
     : await provider.generate(prompt);
 
-  // 4. Parse + validate
-  const result = parseAndValidate(options.jobType, raw);
-  if (!result.success) {
-    throw new Error(result.feedback);
-  }
-
-  return result.data;
+  // 5. Parse + validate
+  return parseAndValidate(options.jobType, raw);
 }
