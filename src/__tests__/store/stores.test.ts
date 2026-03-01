@@ -188,6 +188,7 @@ describe('semantic-store', () => {
       nodes: newNodes,
       edges: newEdges,
       promotions: newPromotions,
+      lanes: [],
       lanePlans: [],
       unifiedPlan: null,
       dialogueTurns: [],

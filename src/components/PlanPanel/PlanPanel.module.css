@@ -1,0 +1,106 @@
+.panel {
+  background: #12122a;
+  border-left: 1px solid #2a2a4a;
+  padding: 16px;
+  height: 100%;
+  overflow-y: auto;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a4a;
+}
+
+.tabLabel {
+  font-size: 0.8rem;
+  color: #7b7b9a;
+  font-weight: 500;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.emptyText {
+  font-size: 0.9rem;
+  color: #7b7b9a;
+  margin: 0 0 8px 0;
+}
+
+.promotionCount {
+  font-size: 0.8rem;
+  color: #5a5a7a;
+  margin: 0 0 16px 0;
+}
+
+.generateBtn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid #7b4fbf;
+  background: #2a1a4a;
+  color: #c0a0ff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.generateBtn:hover:not(:disabled) {
+  background: #3a2a5a;
+  border-color: #9a6fdf;
+}
+
+.generateBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.planList {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #2a2a4a;
+}
+
+.planListTitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7b7b9a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 8px 0;
+}
+
+.planListItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  color: #b0b0c0;
+}
+
+.planListItem.active {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.planListName {
+  flex: 1;
+}
+
+.planListConfidence {
+  font-size: 0.7rem;
+  color: #7b7b9a;
+}

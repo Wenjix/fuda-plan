@@ -1,0 +1,41 @@
+.selector {
+  display: flex;
+  gap: 2px;
+  padding: 4px 16px;
+  background: #0a0a14;
+  border-bottom: 1px solid #2a2a3a;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #8888aa;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tab:hover {
+  color: #e0e0e0;
+}
+
+.active {
+  color: #e0e0e0;
+  border-bottom-color: var(--lane-color);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.label {
+  text-transform: capitalize;
+}

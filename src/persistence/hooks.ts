@@ -12,13 +12,14 @@ export async function saveSession(): Promise<void> {
   const session = useSessionStore.getState().session;
   if (!session) return;
 
-  const { nodes, edges, promotions, lanePlans, unifiedPlan, dialogueTurns } = useSemanticStore.getState();
+  const { nodes, edges, promotions, lanes, lanePlans, unifiedPlan, dialogueTurns } = useSemanticStore.getState();
 
   // Save session
   await putEntity('sessions', session);
 
   // Save all entities in parallel
   await Promise.all([
+    ...lanes.map(l => putEntity('lanes', l)),
     ...nodes.map(n => putEntity('nodes', n)),
     ...edges.map(e => putEntity('edges', e)),
     ...promotions.map(p => putEntity('promotions', p)),
@@ -70,6 +71,7 @@ export async function restoreSession(sessionId: string): Promise<boolean> {
       nodes: envelope.nodes,
       edges: envelope.edges,
       promotions: envelope.promotions,
+      lanes: envelope.lanes,
       lanePlans: envelope.lanePlans,
       unifiedPlan: envelope.unifiedPlans[0] ?? null,
       dialogueTurns: envelope.dialogueTurns,

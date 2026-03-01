@@ -1,0 +1,13 @@
+.badge {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  color: #5a5a7a;
+  transition: all 0.15s;
+}
+
+.badge:hover:not(:disabled) { color: #d4a017; }
+.badge:disabled { opacity: 0.3; cursor: not-allowed; }
+.promoted { color: #d4a017; }

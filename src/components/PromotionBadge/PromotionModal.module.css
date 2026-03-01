@@ -1,0 +1,104 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #1a1a2e;
+  border: 1px solid #4a4a7a;
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 340px;
+  max-width: 420px;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.title {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+  color: #d4a017;
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.reason {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #b0b0c0;
+}
+
+.reason input[type="radio"] {
+  accent-color: #d4a017;
+}
+
+.reason span {
+  line-height: 1.4;
+}
+
+.note {
+  width: 100%;
+  background: #12121e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  color: #e0e0e0;
+  padding: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.note::placeholder {
+  color: #5a5a7a;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelBtn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid #3a3a5a;
+  background: transparent;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.cancelBtn:hover {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.confirmBtn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  border: 1px solid #d4a017;
+  background: #d4a017;
+  color: #1a1a2e;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.confirmBtn:hover {
+  background: #e6b422;
+}

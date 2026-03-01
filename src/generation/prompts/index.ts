@@ -4,8 +4,10 @@ import { buildPathQuestionsPrompt } from './path-questions';
 import { buildAnswerPrompt } from './answer';
 import { buildBranchPrompt } from './branch';
 import { buildDialoguePrompt, buildConcludeSynthesisPrompt } from './dialogue';
+import { buildLanePlanPrompt } from './lane-plan';
 
 export { buildDialoguePrompt, buildConcludeSynthesisPrompt };
+export { buildLanePlanPrompt };
 
 export function buildPrompt(
   jobType: JobType,
@@ -28,6 +30,10 @@ export function buildPrompt(
       // buildDialoguePrompt directly.
       return buildDialoguePrompt('socratic', [], context, session.challengeDepth);
     case 'lane_plan':
+      // Phase 3: Lane plan prompt requires promoted nodes, not generic context.
+      // Callers should use buildLanePlanPrompt directly (see plan-actions.ts).
+      // Fallback to planner preamble for generic pipeline calls.
+      return buildAnswerPrompt(context, PLANNER_PREAMBLE);
     case 'unified_plan':
       return buildAnswerPrompt(context, PLANNER_PREAMBLE);
   }

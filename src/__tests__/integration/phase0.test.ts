@@ -348,6 +348,7 @@ describe('Phase 0 Integration', () => {
       nodes,
       edges,
       promotions,
+      lanes: [],
       lanePlans: [],
       unifiedPlan: null,
       dialogueTurns: [],

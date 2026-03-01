@@ -20,10 +20,8 @@ import { useViewStore } from './view-store';
 import type { ViewNodeState } from './view-store';
 
 // ---------------------------------------------------------------------------
-// Module-level lane storage (populated by createSession, read by runJob)
+// Lanes are now stored in the semantic store (useSemanticStore.lanes)
 // ---------------------------------------------------------------------------
-
-let sessionLanes: ModelLane[] = [];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,9 +74,6 @@ export async function createSession(topic: string): Promise<PlanningSession> {
     updatedAt: timestamp,
   }));
 
-  // Persist lanes in module-level storage for runJob
-  sessionLanes = lanes;
-
   const activeLaneId = lanes[0].id;
 
   const session: PlanningSession = {
@@ -96,6 +91,9 @@ export async function createSession(topic: string): Promise<PlanningSession> {
   useSemanticStore.getState().clear();
   useJobStore.getState().clear();
   useViewStore.getState().clear();
+
+  // Persist lanes in the semantic store (after clear)
+  useSemanticStore.getState().setLanes(lanes);
 
   useSessionStore.getState().setSession(session);
   useSessionStore.getState().setActiveLane(activeLaneId);
@@ -148,6 +146,58 @@ export async function explore(
 
   // Fire and forget
   void runJob(job, session);
+}
+
+// ---------------------------------------------------------------------------
+// 2b. exploreAllLanes — create root nodes for all lanes
+// ---------------------------------------------------------------------------
+
+export async function exploreAllLanes(
+  session: PlanningSession,
+  topic: string,
+): Promise<void> {
+  const lanes = useSemanticStore.getState().lanes;
+  if (lanes.length === 0) {
+    throw new Error('No lanes available — create a session first');
+  }
+
+  const timestamp = now();
+
+  for (const lane of lanes) {
+    const rootNode: SemanticNode = {
+      id: generateId(),
+      sessionId: session.id,
+      laneId: lane.id,
+      parentId: null,
+      nodeType: 'root',
+      pathType: 'clarify',
+      question: topic,
+      fsmState: 'idle',
+      promoted: false,
+      depth: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    useSemanticStore.getState().addNode(rootNode);
+
+    const viewNode: ViewNodeState = {
+      semanticId: rootNode.id,
+      position: { x: 0, y: 0 },
+      isCollapsed: false,
+      isAnswerVisible: false,
+      isNew: true,
+      spawnIndex: 0,
+    };
+    useViewStore.getState().setViewNode(rootNode.id, viewNode);
+
+    const job = makeJob(session.id, rootNode.id, 'path_questions');
+
+    // Fire and forget per-lane generation
+    void runJob(job, session);
+  }
+
+  useSessionStore.getState().setUIMode('exploring');
 }
 
 // ---------------------------------------------------------------------------
@@ -273,7 +323,7 @@ export async function runJob(
   useJobStore.getState().updateJobState(job.id, { type: 'START' });
 
   // Gather current graph state for the pipeline
-  const { nodes, edges } = useSemanticStore.getState();
+  const { nodes, edges, lanes: sessionLanes } = useSemanticStore.getState();
 
   // Load API key from persisted settings
   const settings = await loadSettings();

@@ -1,10 +1,15 @@
+import { useState, useCallback } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { Handle, Position } from '@xyflow/react';
-import type { SemanticNode } from '../../core/types';
+import type { SemanticNode, PromotionReason } from '../../core/types';
 import { StatusBadge } from '../shared/StatusBadge';
 import { StreamingText } from '../shared/StreamingText';
+import { PromotionBadge } from '../PromotionBadge/PromotionBadge';
+import { PromotionModal } from '../PromotionBadge/PromotionModal';
 import { useViewStore } from '../../store/view-store';
 import { answerNode, branchFromNode } from '../../store/actions';
+import { promoteNode, unpromoteNode } from '../../store/promotion-actions';
+import { canPromote } from '../../core/fsm/node-fsm';
 import type { PathType } from '../../core/types';
 import styles from './ExplorationCard.module.css';
 
@@ -15,6 +20,7 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
   const streamBuffer = useViewStore(s => s.streamBuffers.get(id) ?? '');
   const openDialoguePanel = useViewStore(s => s.openDialoguePanel);
   const isStreaming = node.fsmState === 'generating';
+  const [showPromotionModal, setShowPromotionModal] = useState(false);
 
   const handleAnswer = () => {
     if (node.fsmState === 'idle') {
@@ -28,6 +34,23 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
     }
   };
 
+  const handlePromotionClick = useCallback(() => {
+    if (node.promoted) {
+      unpromoteNode(id);
+    } else if (canPromote(node.fsmState)) {
+      setShowPromotionModal(true);
+    }
+  }, [node.promoted, node.fsmState, id]);
+
+  const handlePromotionConfirm = useCallback((reason: PromotionReason, note: string) => {
+    promoteNode(id, reason, note || undefined);
+    setShowPromotionModal(false);
+  }, [id]);
+
+  const handlePromotionCancel = useCallback(() => {
+    setShowPromotionModal(false);
+  }, []);
+
   return (
     <div className={styles.card}>
       <Handle type="target" position={Position.Top} className={styles.handle} />
@@ -37,7 +60,19 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
         {node.pathType && (
           <span className={styles.pathType}>{node.pathType}</span>
         )}
+        <PromotionBadge
+          isPromoted={node.promoted}
+          onClick={handlePromotionClick}
+          disabled={!canPromote(node.fsmState) && !node.promoted}
+        />
       </div>
+
+      {showPromotionModal && (
+        <PromotionModal
+          onConfirm={handlePromotionConfirm}
+          onCancel={handlePromotionCancel}
+        />
+      )}
 
       <div className={styles.question}>{node.question}</div>
 
