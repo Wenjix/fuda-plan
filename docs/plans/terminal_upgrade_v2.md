@@ -123,3 +123,150 @@ interface TerminalState {
 - Single-user trust model remains; no multi-tenant auth introduced in this phase.
 - Terminal history and process state are not included in FUDA exports or IndexedDB persistence.
 - Existing LLM generation pipeline remains unchanged; terminal is an orthogonal capability.
+
+## V2.1 Upgrade: Mistral Vibe CLI Enablement
+### Goal
+- After terminal v2 ships, users can run Mistral Vibe immediately in FUDA terminal sessions.
+- Account for the executable reality from upstream docs: package name is `mistral-vibe`, primary CLI command is `vibe`.
+- Treat readiness as two checks, not one: binary availability and API-key/config readiness.
+
+### Runtime Strategy
+1. Keep container-backed terminal as the default runtime (from v2).
+2. Add explicit backend config:
+- `TERMINAL_RUNTIME_MODE=container|host` (default `container`).
+- `TERMINAL_VIBE_BIN=auto|vibe|mistral-vibe` (default `auto`; probe `vibe` first, then `mistral-vibe`).
+- `TERMINAL_VIBE_HOME=/home/fuda/.vibe` (container default).
+3. Behavior by mode:
+- `container`: user's host install is irrelevant unless container image also includes Vibe.
+- `host`: user's local install is usable if in `PATH`.
+
+### API and Protocol Additions
+1. Extend `POST /api/terminal/sessions` response:
+
+```ts
+interface TerminalToolStatus {
+  available: boolean;
+  command: 'vibe' | 'mistral-vibe' | null;
+  version: string | null;
+  installRequired: boolean;
+  installScope: 'host' | 'container';
+  pythonVersion: string | null;
+  uvAvailable: boolean;
+  apiKeyConfigured: boolean;
+  setupRequired: boolean;
+  vibeHome: string | null;
+}
+
+interface CreateTerminalSessionResponseV21 {
+  terminalSessionId: string;
+  wsUrl: string;
+  expiresAt: string;
+  tools: {
+    mistralVibe: TerminalToolStatus;
+  };
+}
+```
+
+2. Add optional client/server re-check messages:
+
+```ts
+type ClientMsgV21 = { type: 'probe_tool'; tool: 'vibe' };
+type ServerMsgV21 = { type: 'tool_status'; tool: 'vibe'; status: TerminalToolStatus };
+```
+
+3. Backend probe command sequence (runtime shell):
+- `command -v vibe || command -v mistral-vibe`
+- `<resolved-bin> --version` (if present)
+- `python3 --version` (or `python --version`)
+- `command -v uv`
+- API-key presence check via `MISTRAL_API_KEY` env or `${VIBE_HOME}/.env` entry (report boolean only; never return value)
+
+### Installation and First-Run UX
+1. If binary + API key are ready:
+- Show "Mistral Vibe ready (`vibe`)" status in terminal drawer.
+
+2. If binary is missing:
+- Show non-blocking banner with copyable install commands.
+- Recommended install order:
+  1. `uv tool install mistral-vibe`
+  2. `pip install mistral-vibe`
+  3. `curl -LsSf https://mistral.ai/vibe/install.sh | bash`
+
+3. If binary exists but API key is not configured:
+- Show setup guidance:
+  1. `vibe --setup`
+  2. or `export MISTRAL_API_KEY=...`
+- Clarify that Vibe may write credentials to `${VIBE_HOME}/.env`.
+4. Trust-folder behavior:
+- If Vibe prompts for folder trust, treat as an interactive first-run step and surface a notice instead of classifying the tool as broken.
+- Keep terminal usable so user can approve trust in-session.
+
+5. Terminal compatibility handling:
+- Vibe targets modern UNIX terminals; xterm.js compatibility should be treated as "best effort".
+- Provide fallback command examples for non-interactive usage:
+  - `vibe --prompt "..." --max-turns 3 --output text`
+
+6. Security and controls:
+- Never auto-run installers or `vibe --setup` without explicit user action.
+- Redact secrets from diagnostics and telemetry.
+- Do not persist API keys in FUDA app state or IndexedDB.
+
+### Container Image and Env Changes (Default Mode)
+1. Build terminal image variant with pinned Vibe stack:
+- Python 3.12+, `uv`, `mistral-vibe` package, `vibe` command available.
+- Build args: `MISTRAL_VIBE_VERSION`, `PYTHON_VERSION`.
+2. Set container defaults for reproducibility:
+- `VIBE_HOME=/home/fuda/.vibe`.
+- Precreate minimal `config.toml` with `enable_auto_update = false`.
+3. Validate on container startup:
+- Fail fast if configured Vibe command is missing.
+
+### Frontend Changes
+1. Extend terminal tooling state:
+
+```ts
+interface TerminalToolingState {
+  mistralVibe: {
+    available: boolean;
+    command: 'vibe' | 'mistral-vibe' | null;
+    version: string | null;
+    installRequired: boolean;
+    installScope: 'host' | 'container' | null;
+    pythonVersion: string | null;
+    uvAvailable: boolean;
+    apiKeyConfigured: boolean;
+    setupRequired: boolean;
+    vibeHome: string | null;
+    lastCheckedAt: string | null;
+  };
+}
+```
+
+2. Add `TerminalSetupNotice` states:
+- `ready`: compact status pill with resolved command and version.
+- `install_required`: install command snippets.
+- `setup_required`: API key/setup instructions.
+
+3. Keep tool status ephemeral (no IndexedDB persistence), same as terminal session state.
+
+### Test Additions for v2.1
+1. Backend unit tests:
+- Resolves command correctly when only `vibe` exists.
+- Falls back to `mistral-vibe` when `vibe` alias is missing.
+- Reports `setupRequired=true` when API key is absent.
+
+2. Frontend unit/component tests:
+- Renders `ready`, `install_required`, and `setup_required` states.
+- Re-check action triggers `probe_tool` and updates state.
+- Missing/setup banners do not block terminal input/output.
+
+3. Integration tests:
+- `container` mode image can run `vibe --version` and `vibe --help`.
+- `host` mode uses host binary when present.
+- Missing binary and missing API key each produce distinct guidance.
+- Programmatic fallback command (`vibe --prompt ...`) runs in non-interactive scenarios.
+
+### Rollout Plan
+1. v2: ship PTY terminal without hard dependency on Vibe.
+2. v2.1: ship Vibe probe + install/setup readiness UX + runtime config.
+3. v2.1.1: ship pinned container image, hardened CI coverage, and terminal compatibility QA matrix.
