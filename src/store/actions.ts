@@ -13,11 +13,18 @@ import { generate } from '../generation/pipeline';
 import type { GenerateResult } from '../generation/pipeline';
 import { generateId } from '../utils/ids';
 import { loadSettings } from '../persistence/settings-store';
+import { isOnline } from '../utils/online-status';
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { useJobStore } from './job-store';
 import { useViewStore } from './view-store';
 import type { ViewNodeState } from './view-store';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+export const MAX_BRANCH_DEPTH = 15;
 
 // ---------------------------------------------------------------------------
 // Lanes are now stored in the semantic store (useSemanticStore.lanes)
@@ -255,6 +262,20 @@ export async function branchFromNode(
     );
   }
 
+  // Soft depth limit: auto-promote and refuse branching beyond MAX_BRANCH_DEPTH
+  if (parentNode.depth >= MAX_BRANCH_DEPTH) {
+    // Auto-promote the node instead of branching deeper
+    if (!parentNode.promoted) {
+      useSemanticStore.getState().updateNode(nodeId, {
+        promoted: true,
+        updatedAt: now(),
+      });
+    }
+    throw new Error(
+      `Depth limit reached (${MAX_BRANCH_DEPTH}). Node has been promoted. Consider promoting insights rather than branching deeper.`,
+    );
+  }
+
   const session = useSessionStore.getState().session;
   if (!session) {
     throw new Error('No active session');
@@ -330,6 +351,11 @@ export async function runJob(
   const apiKey = settings.geminiApiKey;
 
   try {
+    // Check online status before attempting generation
+    if (!isOnline()) {
+      throw new Error('Device is offline. Generation will resume when reconnected.');
+    }
+
     const result: GenerateResult = await generate({
       targetNodeId: job.targetNodeId,
       jobType: job.jobType,

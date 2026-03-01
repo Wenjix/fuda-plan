@@ -43,10 +43,10 @@ describe('MockProvider', () => {
 })
 
 describe('getProvider', () => {
-  it('returns MockProvider when apiKey is empty', () => {
+  it('returns DemoProvider when apiKey is empty', () => {
     const provider = getProvider('')
     expect(provider).toBeDefined()
-    // Verify it behaves like MockProvider
+    // Verify it behaves like a GenerationProvider
     expect(provider.generate).toBeDefined()
     expect(provider.generateStream).toBeDefined()
   })

@@ -9,14 +9,26 @@ import { getProvider } from '../generation/providers';
 import { parseAndValidate } from '../core/validation/schema-gates';
 import { loadSettings } from '../persistence/settings-store';
 
+export const MAX_DIALOGUE_TURNS = 20;
+
 /**
  * Add a user turn to the dialogue.
+ * If the dialogue has reached MAX_DIALOGUE_TURNS, auto-concludes instead.
  */
 export function addUserTurn(nodeId: string, content: string, mode: DialecticMode): DialogueTurn {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('No active session');
 
   const turns = useSemanticStore.getState().getDialogueTurnsByNode(nodeId);
+
+  // Dialogue turn cap: auto-conclude at the limit
+  if (turns.length >= MAX_DIALOGUE_TURNS) {
+    void concludeDialogue(nodeId);
+    throw new Error(
+      `Dialogue turn cap reached (${MAX_DIALOGUE_TURNS}). Dialogue has been auto-concluded.`,
+    );
+  }
+
   const turn: DialogueTurn = {
     id: generateId(),
     sessionId: session.id,
@@ -34,6 +46,7 @@ export function addUserTurn(nodeId: string, content: string, mode: DialecticMode
 
 /**
  * Generate an AI dialogue response.
+ * If the dialogue has reached MAX_DIALOGUE_TURNS, auto-concludes instead.
  */
 export async function generateDialogueResponse(
   nodeId: string,
@@ -44,6 +57,15 @@ export async function generateDialogueResponse(
 
   const { nodes, edges } = useSemanticStore.getState();
   const turns = useSemanticStore.getState().getDialogueTurnsByNode(nodeId);
+
+  // Dialogue turn cap: auto-conclude at the limit
+  if (turns.length >= MAX_DIALOGUE_TURNS) {
+    await concludeDialogue(nodeId);
+    throw new Error(
+      `Dialogue turn cap reached (${MAX_DIALOGUE_TURNS}). Dialogue has been auto-concluded.`,
+    );
+  }
+
   const challengeDepth = useSessionStore.getState().challengeDepth;
 
   // Apply defensive user detection

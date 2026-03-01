@@ -1,5 +1,5 @@
 import { ReactFlow, Background, Controls } from '@xyflow/react';
-import type { NodeTypes, EdgeTypes } from '@xyflow/react';
+import type { NodeTypes, EdgeTypes, OnNodesChange, OnEdgesChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSemanticStore } from '../../store/semantic-store';
 import { useSessionStore } from '../../store/session-store';
@@ -7,17 +7,7 @@ import { useViewStore } from '../../store/view-store';
 import { projectToReactFlow } from '../../store/view-projection';
 import { ExplorationCard } from '../ExplorationCard/ExplorationCard';
 import { Connector } from '../shared/Connector';
-import { useMemo } from 'react';
-
-// Register custom node types
-const nodeTypes: NodeTypes = {
-  explorationCard: ExplorationCard,
-  planCard: ExplorationCard, // placeholder until PlanCard exists
-};
-
-const edgeTypes: EdgeTypes = {
-  fudaConnector: Connector,
-};
+import { useMemo, useCallback } from 'react';
 
 export function FudaCanvas() {
   const semanticNodes = useSemanticStore(s => s.nodes);
@@ -25,10 +15,30 @@ export function FudaCanvas() {
   const viewStates = useViewStore(s => s.viewNodes);
   const activeLaneId = useSessionStore(s => s.activeLaneId);
 
+  // Stable references for nodeTypes and edgeTypes to avoid React Flow re-registration
+  const nodeTypes: NodeTypes = useMemo(() => ({
+    explorationCard: ExplorationCard,
+    planCard: ExplorationCard, // placeholder until PlanCard exists
+  }), []);
+
+  const edgeTypes: EdgeTypes = useMemo(() => ({
+    fudaConnector: Connector,
+  }), []);
+
+  // Memoize the projection computation
   const { nodes, edges } = useMemo(
     () => projectToReactFlow(semanticNodes, semanticEdges, viewStates, activeLaneId ?? ''),
     [semanticNodes, semanticEdges, viewStates, activeLaneId]
   );
+
+  // Stable callbacks for React Flow event handlers
+  const onNodesChange = useCallback<OnNodesChange>(() => {
+    // Node changes handled by our stores, not by React Flow internal state
+  }, []);
+
+  const onEdgesChange = useCallback<OnEdgesChange>(() => {
+    // Edge changes handled by our stores, not by React Flow internal state
+  }, []);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
@@ -37,6 +47,8 @@ export function FudaCanvas() {
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         defaultEdgeOptions={{ type: 'fudaConnector' }}
         fitView
         proOptions={{ hideAttribution: true }}

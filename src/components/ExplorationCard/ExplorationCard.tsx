@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
 import { Handle, Position } from '@xyflow/react';
 import type { SemanticNode, PromotionReason } from '../../core/types';
@@ -7,32 +7,44 @@ import { StreamingText } from '../shared/StreamingText';
 import { PromotionBadge } from '../PromotionBadge/PromotionBadge';
 import { PromotionModal } from '../PromotionBadge/PromotionModal';
 import { useViewStore } from '../../store/view-store';
+import { useSemanticStore } from '../../store/semantic-store';
 import { answerNode, branchFromNode } from '../../store/actions';
 import { promoteNode, unpromoteNode } from '../../store/promotion-actions';
 import { canPromote } from '../../core/fsm/node-fsm';
 import type { PathType } from '../../core/types';
 import styles from './ExplorationCard.module.css';
 
-type ExplorationCardNodeType = Node<SemanticNode, 'explorationCard'>;
+type ExplorationCardData = SemanticNode & { _hiddenDescendants?: number };
+type ExplorationCardNodeType = Node<ExplorationCardData, 'explorationCard'>;
 
-export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>) {
+function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) {
   const node = data;
   const streamBuffer = useViewStore(s => s.streamBuffers.get(id) ?? '');
   const openDialoguePanel = useViewStore(s => s.openDialoguePanel);
+  const toggleCollapse = useViewStore(s => s.toggleCollapse);
+  const viewNode = useViewStore(s => s.viewNodes.get(id));
   const isStreaming = node.fsmState === 'generating';
   const [showPromotionModal, setShowPromotionModal] = useState(false);
 
-  const handleAnswer = () => {
+  // Check if this node has children (is a parent) by checking edges
+  const hasChildren = useSemanticStore(s =>
+    s.edges.some(e => e.sourceNodeId === id)
+  );
+
+  const isCollapsed = viewNode?.isCollapsed ?? false;
+  const hiddenCount = (node as ExplorationCardData)._hiddenDescendants ?? 0;
+
+  const handleAnswer = useCallback(() => {
     if (node.fsmState === 'idle') {
       void answerNode(id);
     }
-  };
+  }, [node.fsmState, id]);
 
-  const handleBranch = (pathType: string) => {
+  const handleBranch = useCallback((pathType: string) => {
     if (node.fsmState === 'resolved') {
       void branchFromNode(id, pathType as PathType);
     }
-  };
+  }, [node.fsmState, id]);
 
   const handlePromotionClick = useCallback(() => {
     if (node.promoted) {
@@ -51,6 +63,10 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
     setShowPromotionModal(false);
   }, []);
 
+  const handleToggleCollapse = useCallback(() => {
+    toggleCollapse(id);
+  }, [toggleCollapse, id]);
+
   return (
     <div className={styles.card}>
       <Handle type="target" position={Position.Top} className={styles.handle} />
@@ -65,6 +81,15 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
           onClick={handlePromotionClick}
           disabled={!canPromote(node.fsmState) && !node.promoted}
         />
+        {hasChildren && (
+          <button
+            className={styles.collapseBtn}
+            onClick={handleToggleCollapse}
+            title={isCollapsed ? 'Expand children' : 'Collapse children'}
+          >
+            {isCollapsed ? `+${hiddenCount}` : '-'}
+          </button>
+        )}
       </div>
 
       {showPromotionModal && (
@@ -125,3 +150,5 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
     </div>
   );
 }
+
+export const ExplorationCard = memo(ExplorationCardInner);

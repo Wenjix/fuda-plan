@@ -112,6 +112,24 @@
   border-color: #9a6fdf;
 }
 
+.collapseBtn {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #3a3a5a;
+  background: #2a2a4a;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.collapseBtn:hover {
+  background: #3a3a5a;
+  color: #e0e0e0;
+}
+
 .handle {
   width: 8px;
   height: 8px;

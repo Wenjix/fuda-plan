@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { SemanticEdge } from '../core/types';
 
 export interface ViewNodeState {
   semanticId: string;
@@ -7,6 +8,33 @@ export interface ViewNodeState {
   isAnswerVisible: boolean;
   isNew: boolean;
   spawnIndex: number;
+}
+
+/**
+ * Collect all descendant node IDs from the given node using BFS on edges.
+ */
+export function getDescendantIds(nodeId: string, edges: SemanticEdge[]): string[] {
+  // Build a quick children lookup from edges
+  const childrenOf = new Map<string, string[]>();
+  for (const edge of edges) {
+    const children = childrenOf.get(edge.sourceNodeId) ?? [];
+    children.push(edge.targetNodeId);
+    childrenOf.set(edge.sourceNodeId, children);
+  }
+
+  const descendants: string[] = [];
+  const queue: string[] = [...(childrenOf.get(nodeId) ?? [])];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    descendants.push(current);
+    const children = childrenOf.get(current) ?? [];
+    for (const child of children) {
+      queue.push(child);
+    }
+  }
+
+  return descendants;
 }
 
 interface ViewState {

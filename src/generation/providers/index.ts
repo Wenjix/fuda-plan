@@ -1,5 +1,5 @@
 import type { GenerationProvider } from './types';
-import { MockProvider } from './mock';
+import { DemoProvider } from './demo-provider';
 import { GeminiProvider } from './gemini';
 
 export type { GenerationProvider } from './types';
@@ -8,7 +8,7 @@ let cachedProvider: { key: string; provider: GenerationProvider } | null = null;
 
 export function getProvider(apiKey: string): GenerationProvider {
   if (!apiKey) {
-    return new MockProvider();
+    return new DemoProvider();
   }
 
   // Cache provider instance to reuse connections
