@@ -10,6 +10,7 @@ interface SynthesisPanelProps {
   unifiedPlan: UnifiedPlan | null;
   onSynthesize?: () => Promise<void>;
   onEvidenceClick?: (nodeId: string) => void;
+  onTalkToPlan?: () => void;
 }
 
 const SECTION_ORDER = ['goals', 'assumptions', 'strategy', 'milestones', 'risks', 'nextActions'] as const;
@@ -30,6 +31,7 @@ export function SynthesisPanel({
   unifiedPlan,
   onSynthesize,
   onEvidenceClick,
+  onTalkToPlan,
 }: SynthesisPanelProps) {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
@@ -73,7 +75,17 @@ export function SynthesisPanel({
       <div className={styles.panel}>
         <div className={styles.header}>
           <h3 className={styles.title}>{unifiedPlan.title}</h3>
-          {status === 'synthesis_ready' && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {onTalkToPlan && (
+              <button
+                className={styles.synthesizeBtn}
+                onClick={onTalkToPlan}
+                type="button"
+              >
+                Talk to Plan
+              </button>
+            )}
+            {status === 'synthesis_ready' && (
             <button
               className={styles.synthesizeBtn}
               onClick={() => void handleSynthesize()}
@@ -82,6 +94,7 @@ export function SynthesisPanel({
               Re-synthesize
             </button>
           )}
+          </div>
         </div>
 
         {SECTION_ORDER.map(key => {

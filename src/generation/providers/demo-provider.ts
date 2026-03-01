@@ -142,6 +142,67 @@ function buildReduce(_prompt: string): object {
   };
 }
 
+function buildPlanReflection(_prompt: string): object {
+  const fakeId = () => crypto.randomUUID();
+  return {
+    understanding: 'The user is questioning whether the current risk mitigation strategy is sufficient, particularly around team capacity and timeline assumptions. They suggest the milestones may be too aggressive given the resource constraints discussed.',
+    gapCards: [
+      {
+        id: fakeId(),
+        sectionKey: 'risks',
+        severity: 'high',
+        title: 'Insufficient capacity planning',
+        description: 'The current risk section mentions team capacity but does not quantify the gap or propose concrete mitigation beyond "identify and reserve early."',
+        evidenceFromTranscript: ['User noted that capacity constraints are more severe than initially assumed.'],
+        rationale: 'Without specific numbers on required vs. available capacity, the risk remains unactionable.',
+      },
+      {
+        id: fakeId(),
+        sectionKey: 'milestones',
+        severity: 'medium',
+        title: 'Timeline may be too aggressive',
+        description: 'The 4-week Phase 1 timeline assumes full team availability, which conflicts with the capacity concerns raised.',
+        evidenceFromTranscript: ['User questioned whether weeks 1-4 is realistic given competing priorities.'],
+        rationale: 'A more conservative timeline with explicit dependency mapping would reduce schedule risk.',
+      },
+    ],
+    proposedEdits: [
+      {
+        id: fakeId(),
+        sectionKey: 'risks',
+        operation: 'update_section',
+        targetHeading: 'Execution Risk',
+        draftHeading: 'Execution Risk — Capacity & Timeline',
+        draftContent: [
+          'Team capacity constraints could delay the timeline by 2-3 weeks. Mitigation: conduct a capacity audit in week 1, identify critical-path resources, and establish a resource escalation process.',
+          'Competing priorities from other projects may reduce effective availability to 60%. Mitigation: secure executive sponsorship for dedicated allocation.',
+        ],
+        confidence: 0.85,
+        reason: 'The user raised specific concerns about capacity that warrant a more detailed risk description with quantified mitigations.',
+        approved: false,
+      },
+      {
+        id: fakeId(),
+        sectionKey: 'milestones',
+        operation: 'update_content_bullet',
+        targetHeading: 'Phase 1 — Foundation (Weeks 1-4)',
+        draftContent: [
+          'Week 1: Capacity audit and resource allocation confirmation.',
+          'Weeks 2-3: Initial assessment and stakeholder interviews.',
+          'Week 4: First experiment design and success criteria definition.',
+        ],
+        confidence: 0.7,
+        reason: 'Breaking Phase 1 into weekly deliverables adds accountability and makes the timeline more realistic.',
+        approved: false,
+      },
+    ],
+    unresolvedQuestions: [
+      'What is the actual team availability percentage given current commitments?',
+      'Are there external dependencies (vendor timelines, regulatory approvals) that could further constrain the schedule?',
+    ],
+  };
+}
+
 function extractTopicHint(prompt: string): string {
   // Try to pull a topic from common prompt patterns
   const match = prompt.match(/topic[:\s]+"([^"]+)"/i)
@@ -159,6 +220,7 @@ function detectJobType(prompt: string): string {
   if (lower.includes('lane_plan') || (lower.includes('lane') && lower.includes('plan'))) return 'lane_plan';
   if (lower.includes('pairwise_map') || lower.includes('pairwise')) return 'pairwise_map';
   if (lower.includes('reduce_prompt') || lower.includes('merge plans') || lower.includes('conflictsresolved')) return 'reduce';
+  if (lower.includes('plan reflection') || lower.includes('plan_reflection') || lower.includes('reflection transcript')) return 'plan_reflection';
   return 'answer';
 }
 
@@ -177,6 +239,8 @@ function generateResponseForType(jobType: string, prompt: string): string {
       return JSON.stringify(buildPairwiseMap(prompt));
     case 'reduce':
       return JSON.stringify(buildReduce(prompt));
+    case 'plan_reflection':
+      return JSON.stringify(buildPlanReflection(prompt));
     default:
       return JSON.stringify(pickAnswer(prompt));
   }

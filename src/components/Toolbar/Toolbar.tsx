@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useSessionStore } from '../../store/session-store.ts';
 import { useSemanticStore } from '../../store/semantic-store.ts';
+import { usePlanTalkStore } from '../../store/plan-talk-store.ts';
 import { saveSession } from '../../persistence/hooks.ts';
 import { Settings } from '../Settings/Settings.tsx';
 import styles from './Toolbar.module.css';
@@ -8,7 +9,11 @@ import styles from './Toolbar.module.css';
 export function Toolbar() {
   const session = useSessionStore(s => s.session);
   const uiMode = useSessionStore(s => s.uiMode);
+  const planPanelOpen = useSessionStore(s => s.planPanelOpen);
+  const togglePlanPanel = useSessionStore(s => s.togglePlanPanel);
   const nodeCount = useSemanticStore(s => s.nodes.length);
+  const unifiedPlan = useSemanticStore(s => s.unifiedPlan);
+  const openPlanTalk = usePlanTalkStore(s => s.open);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleWorkspaceClick = useCallback(() => {
@@ -44,6 +49,26 @@ export function Toolbar() {
         <div className={styles.right}>
           {session && (
             <span className={styles.nodeCount}>{nodeCount} nodes</span>
+          )}
+          {session && uiMode === 'exploring' && (
+            <button
+              className={`${styles.planToggle} ${planPanelOpen ? styles.planToggleActive : ''}`}
+              onClick={togglePlanPanel}
+              type="button"
+              aria-label={planPanelOpen ? 'Close plan panel' : 'Open plan panel'}
+            >
+              Plan
+            </button>
+          )}
+          {session && unifiedPlan && (
+            <button
+              className={styles.planToggle}
+              onClick={openPlanTalk}
+              type="button"
+              aria-label="Talk to Plan"
+            >
+              Talk to Plan
+            </button>
           )}
           <button
             className={styles.settingsButton}

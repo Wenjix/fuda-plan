@@ -21,5 +21,7 @@ export const UnifiedPlanSchema = z.object({
   unresolvedQuestions: z.array(z.string().min(1)).default([]),
   evidence: z.array(EvidenceRefSchema).min(1),
   createdAt: ISODateTimeSchema,
+  revision: z.number().int().positive().default(1),
+  updatedAt: ISODateTimeSchema.optional(),
 });
 export type UnifiedPlan = z.infer<typeof UnifiedPlanSchema>;

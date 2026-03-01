@@ -15,9 +15,10 @@ interface PlanPanelProps {
   onGeneratePlan: (laneId: string) => void;
   onEvidenceClick?: (nodeId: string) => void;
   onSynthesize?: () => Promise<void>;
+  onTalkToPlan?: () => void;
 }
 
-export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize }: PlanPanelProps) {
+export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize, onTalkToPlan }: PlanPanelProps) {
   const lanePlans = useSemanticStore(s => s.lanePlans);
   const unifiedPlan = useSemanticStore(s => s.unifiedPlan);
   const activeLaneId = useSessionStore(s => s.activeLaneId);
@@ -86,6 +87,7 @@ export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize }: Pla
             unifiedPlan={unifiedPlan}
             onSynthesize={onSynthesize}
             onEvidenceClick={onEvidenceClick}
+            onTalkToPlan={onTalkToPlan}
           />
         </>
       )}

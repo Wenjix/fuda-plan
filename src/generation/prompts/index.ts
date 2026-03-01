@@ -9,6 +9,7 @@ import { buildLanePlanPrompt } from './lane-plan';
 export { buildDialoguePrompt, buildConcludeSynthesisPrompt };
 export { buildLanePlanPrompt };
 export { buildPairwiseMapPrompt, buildReducePrompt, buildFormatPrompt } from './unified-plan';
+export { buildPlanReflectionPrompt } from './plan-reflection';
 
 export function buildPrompt(
   jobType: JobType,
