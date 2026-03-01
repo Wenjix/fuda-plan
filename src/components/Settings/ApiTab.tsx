@@ -90,6 +90,42 @@ export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate
           Voice transcription audio is sent to ElevenLabs when enabled.
         </p>
       </fieldset>
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Voice / TTS</legend>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={settings.voiceTtsEnabled}
+            onChange={(e) => onUpdate({ voiceTtsEnabled: e.target.checked })}
+            aria-label="Enable text-to-speech"
+          />
+          Enable text-to-speech
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={settings.voiceAutoPlayAi}
+            onChange={(e) => onUpdate({ voiceAutoPlayAi: e.target.checked })}
+            disabled={!settings.voiceTtsEnabled}
+            aria-label="Auto-play AI responses"
+          />
+          Auto-play AI responses
+        </label>
+        <input
+          className={styles.textInput}
+          type="text"
+          value={settings.voiceTtsVoiceId}
+          onChange={(e) => onUpdate({ voiceTtsVoiceId: e.target.value })}
+          placeholder="21m00Tcm4TlvDq8ikWAM (default)"
+          disabled={!settings.voiceTtsEnabled}
+          aria-label="TTS Voice ID"
+          style={{ marginBottom: '0.5rem' }}
+        />
+        <p className={styles.statusIndicator} style={{ color: 'var(--text-muted, #999)' }}>
+          AI responses are synthesized via ElevenLabs when TTS is enabled.
+        </p>
+      </fieldset>
     </div>
   );
 }

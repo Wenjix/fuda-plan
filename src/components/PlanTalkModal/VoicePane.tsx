@@ -3,16 +3,21 @@ import { usePlanTalkStore } from '../../store/plan-talk-store';
 import { analyzeReflection, transcribeAndAnalyze } from '../../store/plan-talk-actions';
 import { loadSettings } from '../../persistence/settings-store';
 import { VoiceRecorder, MicPermissionError } from '../../services/voice/media-recorder';
+import { audioPlayback } from '../../services/voice/audio-playback';
+import { telemetry } from '../../services/telemetry/collector';
 import styles from './PlanTalkModal.module.css';
 
 export function VoicePane() {
   const turns = usePlanTalkStore((s) => s.turns);
   const turnState = usePlanTalkStore((s) => s.turnState);
+  const ttsAudioBlobs = usePlanTalkStore((s) => s.ttsAudioBlobs);
+  const ttsTurnStatus = usePlanTalkStore((s) => s.ttsTurnStatus);
   const [input, setInput] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
   const [voiceInputMode, setVoiceInputMode] = useState<'hold_to_talk' | 'toggle'>('hold_to_talk');
   const [micDenied, setMicDenied] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [playingTurnId, setPlayingTurnId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -44,6 +49,33 @@ export function VoicePane() {
     };
   }, []);
 
+  // Register audioPlayback onEnd to clear playingTurnId
+  useEffect(() => {
+    audioPlayback.onEnd(() => {
+      setPlayingTurnId(null);
+    });
+  }, []);
+
+  const handleReplay = useCallback(
+    async (turnId: string) => {
+      const blob = ttsAudioBlobs[turnId];
+      if (!blob) return;
+      telemetry.track('tts_replay_clicked', { turnId });
+      setPlayingTurnId(turnId);
+      try {
+        await audioPlayback.play(blob);
+      } catch {
+        setPlayingTurnId(null);
+      }
+    },
+    [ttsAudioBlobs],
+  );
+
+  const handleStopPlayback = useCallback(() => {
+    audioPlayback.stop();
+    setPlayingTurnId(null);
+  }, []);
+
   const startRecording = useCallback(async () => {
     if (isBusy) return;
     const recorder = new VoiceRecorder();
@@ -56,6 +88,7 @@ export function VoicePane() {
       timerRef.current = setInterval(() => {
         setElapsed(recorder.getElapsedMs());
       }, 200);
+      telemetry.track('voice_turn_started');
     } catch (err) {
       if (err instanceof MicPermissionError) {
         setMicDenied(true);
@@ -110,6 +143,7 @@ export function VoicePane() {
     const text = input.trim();
     if (!text || isBusy) return;
     setInput('');
+    telemetry.track('typed_turn_submitted');
     analyzeReflection(text).catch(() => {});
   }, [input, isBusy]);
 
@@ -131,7 +165,7 @@ export function VoicePane() {
 
   return (
     <div className={styles.voicePane}>
-      <div className={styles.transcriptArea} ref={scrollRef}>
+      <div className={styles.transcriptArea} ref={scrollRef} role="log" aria-live="polite">
         {turns.length === 0 && (
           <div className={styles.emptyState}>
             Share your thoughts about the plan. The AI will analyze gaps and suggest improvements.
@@ -141,16 +175,33 @@ export function VoicePane() {
           <div
             key={turn.id}
             className={`${styles.turnBubble} ${turn.speaker === 'user' ? styles.turnUser : styles.turnAi}`}
+            role="article"
+            aria-label={`${turn.speaker} ${turn.source === 'voice' ? 'voice' : 'typed'} message`}
           >
             <div className={styles.turnLabel}>
               {turn.speaker}
               {turn.source === 'voice' && ' (voice)'}
             </div>
             {turn.transcriptText}
+            {turn.speaker === 'ai' && ttsTurnStatus[turn.id] === 'loading' && (
+              <div className={styles.ttsSpinner}>
+                <div className={styles.spinner} style={{ width: 14, height: 14, borderWidth: 2 }} />
+              </div>
+            )}
+            {turn.speaker === 'ai' && ttsTurnStatus[turn.id] === 'ready' && (
+              <button
+                className={`${styles.replayBtn} ${playingTurnId === turn.id ? styles.replayBtnPlaying : ''}`}
+                onClick={() => playingTurnId === turn.id ? handleStopPlayback() : handleReplay(turn.id)}
+                type="button"
+                aria-label={playingTurnId === turn.id ? 'Stop playback' : 'Replay AI response'}
+              >
+                {playingTurnId === turn.id ? '\u23F9' : '\uD83D\uDD0A'}
+              </button>
+            )}
           </div>
         ))}
         {turnState === 'analyzing' && (
-          <div className={styles.analyzing}>
+          <div className={styles.analyzing} role="status" aria-label="Analyzing your reflection">
             <div className={styles.spinner} />
             <span className={styles.analyzingText}>Analyzing your reflection...</span>
           </div>
@@ -172,6 +223,7 @@ export function VoicePane() {
           onKeyDown={handleKeyDown}
           placeholder={micAvailable ? 'Type or use mic...' : 'Type your reflection on the plan...'}
           disabled={isBusy}
+          aria-label="Type your reflection on the plan"
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
           {isRecording && (
@@ -186,13 +238,14 @@ export function VoicePane() {
             type="button"
             title={!elevenLabsKey ? 'Set ElevenLabs API key in Settings' : micDenied ? 'Microphone permission denied' : isRecording ? 'Stop recording' : 'Record'}
           >
-            {isRecording ? '⏹' : '🎙'}
+            {isRecording ? '\u23F9' : '\uD83C\uDF99'}
           </button>
           <button
             className={styles.sendBtn}
             onClick={handleSubmit}
             disabled={!input.trim() || isBusy}
             type="button"
+            aria-label="Send reflection"
           >
             Send
           </button>

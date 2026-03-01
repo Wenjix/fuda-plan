@@ -16,6 +16,9 @@ export const AppSettingsSchema = z.object({
   theme: ThemeSchema,
   elevenLabsApiKey: z.string().default(''),
   voiceInputMode: z.enum(['hold_to_talk', 'toggle']).default('hold_to_talk'),
+  voiceTtsEnabled: z.boolean().default(true),
+  voiceAutoPlayAi: z.boolean().default(true),
+  voiceTtsVoiceId: z.string().default(''),
 });
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;

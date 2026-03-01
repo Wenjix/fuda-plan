@@ -533,3 +533,61 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* TTS Replay button */
+.replayBtn {
+  background: none;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  transition: all 0.15s;
+}
+
+.replayBtn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.replayBtnPlaying {
+  border-color: var(--severity-high, #ef4444);
+  color: var(--severity-high, #ef4444);
+}
+
+.ttsSpinner {
+  margin-top: 6px;
+  display: inline-flex;
+}
+
+/* TTS header chip */
+.ttsChip {
+  font-size: 0.6rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ttsChipDisabled {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.ttsChipLoading {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--severity-medium, #f59e0b);
+}
+
+.ttsChipReady {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--status-text, #22c55e);
+}
+
+.ttsChipFailed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--severity-high, #ef4444);
+}

@@ -1,4 +1,5 @@
 import type { ProposedPlanEdit } from '../../core/types';
+import { telemetry } from '../../services/telemetry/collector';
 import styles from './PlanTalkModal.module.css';
 
 interface EditReviewProps {
@@ -9,7 +10,7 @@ interface EditReviewProps {
 
 export function EditReview({ edit, onAccept, onReject }: EditReviewProps) {
   return (
-    <div className={styles.editCard}>
+    <div className={styles.editCard} role="article" aria-label={`Proposed edit: ${edit.operation.replace(/_/g, ' ')}${edit.targetHeading ? ` on ${edit.targetHeading}` : ''}`}>
       <div className={styles.editHeader}>
         <span className={styles.editOp}>{edit.operation.replace(/_/g, ' ')}</span>
         <span className={styles.editConfidence}>
@@ -34,16 +35,19 @@ export function EditReview({ edit, onAccept, onReject }: EditReviewProps) {
       <div className={styles.editActions}>
         <button
           className={`${styles.acceptBtn} ${edit.approved ? styles.accepted : ''}`}
-          onClick={() => onAccept(edit.id)}
+          onClick={() => { telemetry.track('edit_approved', { editId: edit.id }); onAccept(edit.id); }}
           type="button"
+          aria-pressed={edit.approved}
+          aria-label="Accept this edit"
         >
           {edit.approved ? 'Accepted' : 'Accept'}
         </button>
         {!edit.approved && (
           <button
             className={styles.rejectBtn}
-            onClick={() => onReject(edit.id)}
+            onClick={() => { telemetry.track('edit_dismissed', { editId: edit.id }); onReject(edit.id); }}
             type="button"
+            aria-label="Dismiss this edit"
           >
             Dismiss
           </button>

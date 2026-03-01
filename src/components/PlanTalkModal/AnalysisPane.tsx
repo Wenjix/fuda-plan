@@ -13,8 +13,8 @@ export function AnalysisPane() {
 
   if (error) {
     return (
-      <div className={styles.analysisPane}>
-        <div className={styles.emptyState}>
+      <div className={styles.analysisPane} role="complementary" aria-label="AI Analysis">
+        <div className={styles.emptyState} role="alert">
           Analysis error: {error}
         </div>
       </div>
@@ -23,7 +23,7 @@ export function AnalysisPane() {
 
   if (!understanding) {
     return (
-      <div className={styles.analysisPane}>
+      <div className={styles.analysisPane} role="complementary" aria-label="AI Analysis">
         <div className={styles.emptyState}>
           AI analysis will appear here after you share your thoughts about the plan.
         </div>
@@ -32,7 +32,7 @@ export function AnalysisPane() {
   }
 
   return (
-    <div className={styles.analysisPane}>
+    <div className={styles.analysisPane} role="complementary" aria-label="AI Analysis">
       <h4 className={styles.analysisSectionTitle}>Understanding</h4>
       <p className={styles.understanding}>{understanding}</p>
 

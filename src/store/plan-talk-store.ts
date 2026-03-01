@@ -10,6 +10,8 @@ interface PlanTalkState {
   gapCards: PlanGapCard[];
   unresolvedQuestions: string[];
   error: string | null;
+  ttsAudioBlobs: Record<string, Blob>;
+  ttsTurnStatus: Record<string, 'loading' | 'ready' | 'failed'>;
 
   open: () => void;
   close: () => void;
@@ -21,6 +23,8 @@ interface PlanTalkState {
   setUnresolvedQuestions: (questions: string[]) => void;
   updateEditStatus: (editId: string, approved: boolean) => void;
   setError: (error: string | null) => void;
+  setTtsBlob: (turnId: string, blob: Blob) => void;
+  setTtsTurnStatus: (turnId: string, status: 'loading' | 'ready' | 'failed') => void;
   clear: () => void;
   loadTurns: (turns: PlanTalkTurn[]) => void;
 }
@@ -34,6 +38,8 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
   gapCards: [],
   unresolvedQuestions: [],
   error: null,
+  ttsAudioBlobs: {},
+  ttsTurnStatus: {},
 
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
@@ -50,6 +56,10 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
       ),
     })),
   setError: (error) => set({ error }),
+  setTtsBlob: (turnId, blob) =>
+    set((s) => ({ ttsAudioBlobs: { ...s.ttsAudioBlobs, [turnId]: blob } })),
+  setTtsTurnStatus: (turnId, status) =>
+    set((s) => ({ ttsTurnStatus: { ...s.ttsTurnStatus, [turnId]: status } })),
   clear: () =>
     set({
       turnState: 'idle',
@@ -59,6 +69,8 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
       gapCards: [],
       unresolvedQuestions: [],
       error: null,
+      ttsAudioBlobs: {},
+      ttsTurnStatus: {},
     }),
   loadTurns: (turns) => set({ turns }),
 }));

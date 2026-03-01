@@ -17,9 +17,9 @@ export function GapCard({ card }: GapCardProps) {
     styles.severityLow;
 
   return (
-    <div className={`${styles.gapCard} ${severityClass}`}>
+    <div className={`${styles.gapCard} ${severityClass}`} role="article" aria-label={`${card.severity} severity gap: ${card.title}`}>
       <div className={styles.gapHeader}>
-        <span className={`${styles.severityBadge} ${badgeClass}`}>
+        <span className={`${styles.severityBadge} ${badgeClass}`} aria-hidden="true">
           {card.severity}
         </span>
         <h5 className={styles.gapTitle}>{card.title}</h5>

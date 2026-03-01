@@ -7,7 +7,9 @@ import { buildPlanReflectionPrompt } from '../generation/prompts/plan-reflection
 import { PlanReflectionResponseSchema } from '../core/types';
 import type { PlanTalkTurn, PlanSectionKey, StructuredPlan, PlanSection, UnifiedPlan } from '../core/types';
 import { generateId } from '../utils/ids';
-import { transcribeAudio, ElevenLabsSTTError } from '../services/voice/elevenlabs-client';
+import { transcribeAudio, ElevenLabsSTTError, textToSpeech, ElevenLabsTTSError } from '../services/voice/elevenlabs-client';
+import { audioPlayback } from '../services/voice/audio-playback';
+import { telemetry } from '../services/telemetry/collector';
 
 /**
  * Send user reflection text to AI for analysis against the unified plan.
@@ -80,9 +82,17 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
     usePlanTalkStore.getState().setPendingEdits(data.proposedEdits);
     usePlanTalkStore.getState().setUnresolvedQuestions(data.unresolvedQuestions);
     usePlanTalkStore.getState().setTurnState('responded');
+
+    telemetry.track('voice_turn_completed', { source, turnId: aiTurn.id });
+
+    // Fire-and-forget TTS (non-blocking)
+    if (settings.voiceTtsEnabled && settings.elevenLabsApiKey) {
+      generateTts(aiTurn.id, data.understanding, settings.elevenLabsApiKey, settings.voiceTtsVoiceId, settings.voiceAutoPlayAi);
+    }
   } catch (err) {
     usePlanTalkStore.getState().setError(err instanceof Error ? err.message : 'Analysis failed');
     usePlanTalkStore.getState().setTurnState('error');
+    telemetry.track('voice_turn_failed', { source, error: err instanceof Error ? err.message : 'unknown' });
   }
 }
 
@@ -102,6 +112,7 @@ export async function transcribeAndAnalyze(audioBlob: Blob, apiKey: string): Pro
       : 'Transcription failed. Please try again.';
     usePlanTalkStore.getState().setError(message);
     usePlanTalkStore.getState().setTurnState('error');
+    telemetry.track('voice_turn_failed', { source: 'voice', error: message });
   }
 }
 
@@ -168,10 +179,33 @@ export function applyAllAccepted(): void {
       createdAt: new Date().toISOString(),
     };
     usePlanTalkStore.getState().addTurn(summaryTurn);
+    telemetry.track('edits_applied', { count: accepted.length });
   }
 }
 
 // --- Internal helpers ---
+
+async function generateTts(
+  turnId: string,
+  text: string,
+  apiKey: string,
+  voiceId: string,
+  autoPlay: boolean,
+): Promise<void> {
+  usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'loading');
+  try {
+    const blob = await textToSpeech(text, apiKey, voiceId || undefined);
+    usePlanTalkStore.getState().setTtsBlob(turnId, blob);
+    usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'ready');
+    telemetry.track('tts_playback_started', { turnId });
+    if (autoPlay) {
+      await audioPlayback.play(blob);
+    }
+  } catch {
+    usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'failed');
+    telemetry.track('tts_playback_failed', { turnId });
+  }
+}
 
 function applyMutation(
   plan: UnifiedPlan,
