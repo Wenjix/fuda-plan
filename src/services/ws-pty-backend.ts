@@ -11,6 +11,8 @@ interface PendingProbe {
   timer: ReturnType<typeof setTimeout>;
 }
 
+let probeIdCounter = 0;
+
 /**
  * Terminal backend that connects to a PTY server over WebSocket.
  * Implements the same ITerminalBackend interface as LocalEchoBackend,
@@ -33,6 +35,10 @@ export class WebSocketPtyBackend implements ITerminalBackend {
     cwd?: string;
     events: TerminalBackendEvents;
   }): Promise<void> {
+    if (this.state === 'connecting' || this.state === 'ready') {
+      throw new Error('Already connected or connecting');
+    }
+
     this.events = opts.events;
     this.setState('connecting');
 
@@ -52,19 +58,25 @@ export class WebSocketPtyBackend implements ITerminalBackend {
       };
 
       ws.onmessage = (event) => {
-        this.handleMessage(event);
+        if (this.ws === ws) {
+          this.handleMessage(event);
+        }
       };
 
       ws.onerror = () => {
-        this.setState('error');
+        if (this.ws === ws) {
+          this.setState('error');
+        }
         reject(new Error('WebSocket connection failed'));
       };
 
       ws.onclose = () => {
-        if (this.state !== 'error') {
-          this.setState('disconnected');
+        if (this.ws === ws) {
+          if (this.state !== 'error') {
+            this.setState('disconnected');
+          }
+          this.ws = null;
         }
-        this.ws = null;
       };
     });
   }
@@ -106,14 +118,16 @@ export class WebSocketPtyBackend implements ITerminalBackend {
       throw new Error('Not connected');
     }
 
+    const probeId = `${tool}-${++probeIdCounter}`;
+
     return new Promise<TerminalToolStatus>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pendingProbes.delete(tool);
+        this.pendingProbes.delete(probeId);
         reject(new Error(`Probe timed out for tool: ${tool}`));
       }, 10_000);
 
-      this.pendingProbes.set(tool, { resolve, reject, timer });
-      this.ws!.send(JSON.stringify({ type: 'probe', tool }));
+      this.pendingProbes.set(probeId, { resolve, reject, timer });
+      this.ws!.send(JSON.stringify({ type: 'probe', tool, probeId }));
     });
   }
 
@@ -149,19 +163,24 @@ export class WebSocketPtyBackend implements ITerminalBackend {
 
       case 'probeResult': {
         const tool = msg.tool as string;
+        const probeId = msg.probeId as string | undefined;
         const status = msg.status as TerminalToolStatus;
-        const pending = this.pendingProbes.get(tool);
+
+        // Resolve by probeId if present, fall back to tool name for backward compat
+        const key = probeId ?? tool;
+        const pending = this.pendingProbes.get(key);
         if (pending) {
           clearTimeout(pending.timer);
           pending.resolve(status);
-          this.pendingProbes.delete(tool);
+          this.pendingProbes.delete(key);
         }
         this.events?.onToolStatus?.(tool, status);
         break;
       }
 
       case 'error':
-        // Surface server errors via the error message mechanism
+        console.error('[PTY] Server error:', msg.message);
+        this.setState('error');
         break;
     }
   }

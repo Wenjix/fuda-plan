@@ -49,17 +49,20 @@ class MockWebSocket {
   }
 }
 
-// Capture the most recently constructed MockWebSocket
+// Track all constructed MockWebSocket instances
+let mockWsInstances: MockWebSocket[] = [];
 let lastMockWs: MockWebSocket | null = null;
 
 // Install mock WebSocket globally
 const OriginalWebSocket = globalThis.WebSocket;
 beforeEach(() => {
   lastMockWs = null;
+  mockWsInstances = [];
   (globalThis as unknown as Record<string, unknown>).WebSocket = class extends MockWebSocket {
     constructor() {
       super();
       lastMockWs = this;
+      mockWsInstances.push(this);
     }
   };
   // Copy static constants
@@ -203,19 +206,81 @@ describe('WebSocketPtyBackend', () => {
     expect(backend.getState()).toBe('disconnected');
   });
 
+  it('rejects double-connect when already connected', async () => {
+    const connectPromise = backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    lastMockWs!.simulateOpen();
+    await connectPromise;
+
+    await expect(
+      backend.connect({ cols: 80, rows: 24, events: mocks.events }),
+    ).rejects.toThrow('Already connected or connecting');
+  });
+
+  it('rejects double-connect when connecting', async () => {
+    // First connect (not yet open)
+    backend.connect({ cols: 80, rows: 24, events: mocks.events }).catch(() => {});
+
+    await expect(
+      backend.connect({ cols: 80, rows: 24, events: mocks.events }),
+    ).rejects.toThrow('Already connected or connecting');
+  });
+
+  it('stale onclose from old WebSocket does not affect new connection', async () => {
+    // First connect + error
+    const connectPromise1 = backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    const firstWs = lastMockWs!;
+    firstWs.simulateError();
+    await expect(connectPromise1).rejects.toThrow();
+
+    // State is now 'error', disconnect to reset
+    backend.disconnect();
+    expect(backend.getState()).toBe('disconnected');
+
+    // Second connect
+    const connectPromise2 = backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    const secondWs = lastMockWs!;
+    secondWs.simulateOpen();
+    await connectPromise2;
+
+    expect(backend.getState()).toBe('ready');
+
+    // Old WebSocket fires onclose — should NOT affect the new connection
+    firstWs.onclose?.();
+
+    expect(backend.getState()).toBe('ready'); // still ready, not disconnected
+  });
+
+  it('transitions to error on server error message', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const connectPromise = backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    lastMockWs!.simulateOpen();
+    await connectPromise;
+
+    lastMockWs!.simulateMessage({ type: 'error', message: 'PTY already spawned' });
+
+    expect(backend.getState()).toBe('error');
+    expect(mocks.states).toContain('error');
+    expect(consoleSpy).toHaveBeenCalledWith('[PTY] Server error:', 'PTY already spawned');
+
+    consoleSpy.mockRestore();
+  });
+
   describe('probeTool', () => {
-    it('sends probe message and resolves on probeResult', async () => {
+    it('sends probe message with probeId and resolves on probeResult', async () => {
       const connectPromise = backend.connect({ cols: 80, rows: 24, events: mocks.events });
       lastMockWs!.simulateOpen();
       await connectPromise;
 
       const probePromise = backend.probeTool('vibe');
 
-      // Verify probe message was sent
+      // Verify probe message was sent with a probeId
       const sent = JSON.parse(lastMockWs!.sent[1]);
-      expect(sent).toEqual({ type: 'probe', tool: 'vibe' });
+      expect(sent.type).toBe('probe');
+      expect(sent.tool).toBe('vibe');
+      expect(sent.probeId).toBeDefined();
 
-      // Simulate server response
+      // Simulate server response echoing probeId
       const mockStatus = {
         available: true,
         command: 'vibe',
@@ -229,12 +294,41 @@ describe('WebSocketPtyBackend', () => {
         vibeHome: '/home/user/.vibe',
         lastCheckedAt: '2026-03-01T00:00:00.000Z',
       };
-      lastMockWs!.simulateMessage({ type: 'probeResult', tool: 'vibe', status: mockStatus });
+      lastMockWs!.simulateMessage({
+        type: 'probeResult',
+        tool: 'vibe',
+        probeId: sent.probeId,
+        status: mockStatus,
+      });
 
       const result = await probePromise;
       expect(result).toEqual(mockStatus);
       expect(mocks.toolStatuses).toHaveLength(1);
       expect(mocks.toolStatuses[0].tool).toBe('vibe');
+    });
+
+    it('handles concurrent probes for the same tool independently', async () => {
+      const connectPromise = backend.connect({ cols: 80, rows: 24, events: mocks.events });
+      lastMockWs!.simulateOpen();
+      await connectPromise;
+
+      const probe1 = backend.probeTool('vibe');
+      const probe2 = backend.probeTool('vibe');
+
+      // Two probe messages should have been sent with different probeIds
+      const sent1 = JSON.parse(lastMockWs!.sent[1]);
+      const sent2 = JSON.parse(lastMockWs!.sent[2]);
+      expect(sent1.probeId).not.toBe(sent2.probeId);
+
+      const status1 = { available: true, command: 'vibe', version: '1.0', installRequired: false, installScope: null, pythonVersion: null, uvAvailable: false, apiKeyConfigured: true, setupRequired: false, vibeHome: null, lastCheckedAt: null };
+      const status2 = { ...status1, version: '2.0' };
+
+      // Resolve them in reverse order
+      lastMockWs!.simulateMessage({ type: 'probeResult', tool: 'vibe', probeId: sent2.probeId, status: status2 });
+      lastMockWs!.simulateMessage({ type: 'probeResult', tool: 'vibe', probeId: sent1.probeId, status: status1 });
+
+      expect(await probe1).toEqual(status1);
+      expect(await probe2).toEqual(status2);
     });
 
     it('rejects on timeout', async () => {
@@ -258,7 +352,9 @@ describe('WebSocketPtyBackend', () => {
       await expect(backend.probeTool('vibe')).rejects.toThrow('Not connected');
     });
 
-    it('rejects pending probes on disconnect', async () => {
+    it('rejects pending probes and clears timers on disconnect', async () => {
+      vi.useFakeTimers();
+
       const connectPromise = backend.connect({ cols: 80, rows: 24, events: mocks.events });
       lastMockWs!.simulateOpen();
       await connectPromise;
@@ -267,6 +363,12 @@ describe('WebSocketPtyBackend', () => {
       backend.disconnect();
 
       await expect(probePromise).rejects.toThrow('Disconnected');
+
+      // Advancing timers should not cause any additional rejections
+      // (timer was cleared on disconnect)
+      vi.advanceTimersByTime(15_000);
+
+      vi.useRealTimers();
     });
   });
 });

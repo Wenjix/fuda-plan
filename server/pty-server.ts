@@ -9,9 +9,11 @@ import { execFileSync } from 'child_process';
 // avoid cross-module import issues between server and Vite-bundled frontend)
 // ---------------------------------------------------------------------------
 
+type VibeCommand = 'vibe' | 'mistral-vibe';
+
 interface TerminalToolStatus {
   available: boolean;
-  command: string | null;
+  command: VibeCommand | null;
   version: string | null;
   installRequired: boolean;
   installScope: string | null;
@@ -153,7 +155,12 @@ wss.on('connection', (ws: WebSocket) => {
 
         case 'probe': {
           const status = probeTool(msg.tool ?? 'vibe');
-          ws.send(JSON.stringify({ type: 'probeResult', tool: msg.tool, status }));
+          ws.send(JSON.stringify({
+            type: 'probeResult',
+            tool: msg.tool,
+            probeId: msg.probeId ?? undefined,
+            status,
+          }));
           break;
         }
 

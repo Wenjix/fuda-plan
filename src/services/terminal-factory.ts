@@ -12,9 +12,11 @@ export interface TerminalFactoryConfig {
 
 function runtimeModeFromEnv(): TerminalRuntimeMode {
   try {
+    // In test mode, always default to 'local' to avoid real WebSocket connections
+    if (import.meta.env?.MODE === 'test') return 'local';
     const mode = import.meta.env?.VITE_TERMINAL_MODE;
     if (mode === 'host' || mode === 'container' || mode === 'local') return mode;
-  } catch { /* env not available (e.g. tests) */ }
+  } catch { /* env not available */ }
   return 'local';
 }
 
