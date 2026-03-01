@@ -1,4 +1,4 @@
-import type { ITerminalBackend } from '../services/terminal-backend';
+import type { ITerminalBackend, TerminalBackendEvents } from '../services/terminal-backend';
 import type { TerminalToolStatus } from '../services/terminal-tool-types';
 import { createDefaultToolStatus } from '../services/terminal-tool-types';
 import { createTerminalBackend } from '../services/terminal-factory';
@@ -18,14 +18,20 @@ export function setActiveBackend(backend: ITerminalBackend | null): void {
 }
 
 /**
- * Open the terminal drawer. Creates a backend if none exists.
- * Returns the backend so the component can wire onData/onOutput.
+ * Prepare the terminal drawer for opening. Creates a backend and session
+ * but does NOT connect — the caller provides events and connects.
  */
-export function openTerminal(cols: number, rows: number): ITerminalBackend {
+export function prepareTerminal(): ITerminalBackend {
   useViewStore.getState().setTerminalOpen(true);
 
   if (activeBackend && useTerminalStore.getState().connectionState === 'ready') {
     return activeBackend;
+  }
+
+  // If there's a stale backend, clean it up
+  if (activeBackend) {
+    activeBackend.disconnect();
+    activeBackend = null;
   }
 
   const backend = createTerminalBackend();
@@ -34,13 +40,27 @@ export function openTerminal(cols: number, rows: number): ITerminalBackend {
   const sessionId = generateId();
   useTerminalStore.getState().setTerminalSessionId(sessionId);
 
+  return backend;
+}
+
+/**
+ * Open the terminal drawer with default event wiring.
+ * For components that need custom events (e.g. TerminalDrawer with xterm),
+ * use prepareTerminal() + backend.connect() directly instead.
+ */
+export function openTerminal(cols: number, rows: number, events?: TerminalBackendEvents): ITerminalBackend {
+  const backend = prepareTerminal();
+
+  // If already connected, skip reconnecting
+  if (useTerminalStore.getState().connectionState === 'ready') {
+    return backend;
+  }
+
   backend.connect({
     cols,
     rows,
-    events: {
-      onOutput: () => {
-        // Output wiring is handled by the component directly via backend reference
-      },
+    events: events ?? {
+      onOutput: () => {},
       onStateChange: (state) => {
         useTerminalStore.getState().setConnectionState(state);
       },

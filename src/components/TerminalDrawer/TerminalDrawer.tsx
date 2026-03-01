@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useViewStore } from '../../store/view-store';
 import { useTerminalStore } from '../../store/terminal-store';
-import { openTerminal, endTerminalSession, getActiveBackend, probeVibeToolStatus } from '../../store/terminal-actions';
+import { prepareTerminal, endTerminalSession, getActiveBackend, probeVibeToolStatus } from '../../store/terminal-actions';
 import type { ITerminalBackend } from '../../services/terminal-backend';
 import { buildXtermTheme } from './xterm-theme';
 import { TerminalSetupNotice } from './TerminalSetupNotice';
@@ -54,18 +54,11 @@ export function TerminalDrawer() {
       fitAddon.fit();
     });
 
-    // Connect backend with output wired to xterm
-    const backend = openTerminal(term.cols, term.rows);
+    // Prepare backend without connecting, then connect with xterm events
+    const backend = prepareTerminal();
     backendRef.current = backend;
 
-    // Wire backend output to xterm display.
-    // The backend is already connecting from openTerminal, so we
-    // disconnect and reconnect with xterm-aware event handlers.
     const { setConnectionState, setLastExit } = useTerminalStore.getState();
-
-    // Disconnect and reconnect with xterm-aware events
-    backend.disconnect();
-    useTerminalStore.getState().clear();
 
     backend.connect({
       cols: term.cols,
@@ -76,11 +69,8 @@ export function TerminalDrawer() {
         },
         onStateChange: (state) => {
           setConnectionState(state);
-          // Auto-probe Vibe tool status when backend becomes ready
           if (state === 'ready') {
-            probeVibeToolStatus().catch(() => {
-              // Error is surfaced via store.errorMessage
-            });
+            probeVibeToolStatus().catch(() => {});
           }
         },
         onExit: (exitCode, signal) => {
@@ -177,10 +167,7 @@ export function TerminalDrawer() {
 
     // Reconnect a fresh backend
     if (termRef.current) {
-      const backend = openTerminal(termRef.current.cols, termRef.current.rows);
-      // Disconnect the placeholder and reconnect with xterm wiring
-      backend.disconnect();
-      useTerminalStore.getState().clear();
+      const backend = prepareTerminal();
       backend.connect({
         cols: termRef.current.cols,
         rows: termRef.current.rows,
@@ -191,9 +178,7 @@ export function TerminalDrawer() {
           onStateChange: (state) => {
             useTerminalStore.getState().setConnectionState(state);
             if (state === 'ready') {
-              probeVibeToolStatus().catch(() => {
-                // Error is surfaced via store.errorMessage
-              });
+              probeVibeToolStatus().catch(() => {});
             }
           },
           onExit: (exitCode, signal) => {
