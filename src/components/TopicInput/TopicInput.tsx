@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useSessionStore } from '../../store/session-store.ts';
-import { createSession, explore, exploreAllLanes } from '../../store/actions.ts';
+import { createSession, exploreAllLanes } from '../../store/actions.ts';
 import styles from './TopicInput.module.css';
 
 export function TopicInput() {
@@ -19,14 +19,9 @@ export function TopicInput() {
     setError('');
     try {
       const session = await createSession(topic.trim());
-      if (layoutMode === 'quadrant') {
-        // Quadrant mode: start all 4 lanes simultaneously
-        await exploreAllLanes(session, topic.trim());
-      } else {
-        // Single-lane mode: start exploration on the first lane
-        const laneId = session.activeLaneId;
-        await explore(session, laneId, topic.trim());
-      }
+      // Always create root nodes for all 4 lanes so switching
+      // between canvas and quadrant mode works seamlessly
+      await exploreAllLanes(session, topic.trim());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create session');
     } finally {
