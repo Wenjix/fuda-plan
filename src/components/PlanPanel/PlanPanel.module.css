@@ -104,3 +104,9 @@
   font-size: 0.7rem;
   color: #7b7b9a;
 }
+
+.divider {
+  height: 1px;
+  background: #2a2a4a;
+  margin: 16px 0;
+}

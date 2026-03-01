@@ -1,21 +1,33 @@
+import type { SessionStatus } from '../../core/types';
 import { useSemanticStore } from '../../store/semantic-store';
 import { useSessionStore } from '../../store/session-store';
 import { PlanCard } from '../PlanCard/PlanCard';
+import { SynthesisPanel } from '../SynthesisPanel/SynthesisPanel';
 import styles from './PlanPanel.module.css';
+
+const SYNTHESIS_STATUSES: ReadonlySet<SessionStatus> = new Set([
+  'lane_planning',
+  'synthesis_ready',
+  'synthesized',
+]);
 
 interface PlanPanelProps {
   onGeneratePlan: (laneId: string) => void;
   onEvidenceClick?: (nodeId: string) => void;
+  onSynthesize?: () => Promise<void>;
 }
 
-export function PlanPanel({ onGeneratePlan, onEvidenceClick }: PlanPanelProps) {
+export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize }: PlanPanelProps) {
   const lanePlans = useSemanticStore(s => s.lanePlans);
   const unifiedPlan = useSemanticStore(s => s.unifiedPlan);
   const activeLaneId = useSessionStore(s => s.activeLaneId);
+  const sessionStatus = useSessionStore(s => s.session?.status ?? 'exploring');
   const activePlan = lanePlans.find(p => p.laneId === activeLaneId);
   const promotionCount = useSemanticStore(s =>
     s.promotions.filter(p => p.laneId === activeLaneId).length,
   );
+
+  const showSynthesis = SYNTHESIS_STATUSES.has(sessionStatus);
 
   return (
     <div className={styles.panel}>
@@ -62,6 +74,20 @@ export function PlanPanel({ onGeneratePlan, onEvidenceClick }: PlanPanelProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Synthesis section */}
+      {showSynthesis && (
+        <>
+          <div className={styles.divider} />
+          <SynthesisPanel
+            status={sessionStatus}
+            lanePlans={lanePlans}
+            unifiedPlan={unifiedPlan}
+            onSynthesize={onSynthesize}
+            onEvidenceClick={onEvidenceClick}
+          />
+        </>
       )}
     </div>
   );
