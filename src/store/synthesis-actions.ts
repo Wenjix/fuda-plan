@@ -4,9 +4,9 @@ import { buildPairwiseMapPrompt, buildReducePrompt, buildFormatPrompt } from '..
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { generateId } from '../utils/ids';
-import { getProvider } from '../generation/providers';
+import { getDefaultProvider } from '../generation/providers';
 import { parseAndValidate } from '../core/validation/schema-gates';
-import { loadSettings } from '../persistence/settings-store';
+import { loadSettings, resolveApiKeys } from '../persistence/settings-store';
 import { sessionTransition } from '../core/fsm/session-fsm';
 import { extractAllEvidence } from './plan-actions';
 
@@ -83,9 +83,10 @@ export async function triggerSynthesis(): Promise<UnifiedPlan> {
     );
   }
 
-  // 2. Get provider
+  // 2. Get provider (cross-lane operation uses default provider)
   const settings = await loadSettings();
-  const provider = getProvider(settings.geminiApiKey ?? '');
+  const apiKeys = resolveApiKeys(settings);
+  const provider = getDefaultProvider(apiKeys);
 
   // 3. Generate all C(n,2) pairs
   const pairs = generatePairs(lanePlans);

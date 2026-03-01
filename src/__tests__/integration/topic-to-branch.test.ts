@@ -6,9 +6,10 @@ import { useViewStore } from '../../store/view-store'
 
 // Mock settings-store to avoid IndexedDB dependency
 vi.mock('../../persistence/settings-store', () => ({
-  loadSettings: vi.fn().mockResolvedValue({ geminiApiKey: '' }),
+  loadSettings: vi.fn().mockResolvedValue({ geminiApiKey: '', mistralApiKey: '', anthropicApiKey: '', openaiApiKey: '' }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
-  updateSettings: vi.fn().mockResolvedValue({ geminiApiKey: '' }),
+  updateSettings: vi.fn().mockResolvedValue({ geminiApiKey: '', mistralApiKey: '', anthropicApiKey: '', openaiApiKey: '' }),
+  resolveApiKeys: vi.fn().mockReturnValue({ mistral: '', gemini: '', anthropic: '', openai: '' }),
 }))
 
 import { createSession, explore, answerNode, branchFromNode } from '../../store/actions'

@@ -7,18 +7,34 @@ vi.mock('../../persistence/settings-store', async () => {
   const { z } = await import('zod');
   const ThemeSchema = z.enum(['light', 'dark']).default('light');
   const AppSettingsSchema = z.object({
+    mistralApiKey: z.string().default(''),
     geminiApiKey: z.string().default(''),
+    anthropicApiKey: z.string().default(''),
+    openaiApiKey: z.string().default(''),
     challengeDepth: z.enum(['gentle', 'balanced', 'intense']).default('balanced'),
     autoSaveEnabled: z.boolean().default(true),
     animationsEnabled: z.boolean().default(true),
     theme: ThemeSchema,
+    elevenLabsApiKey: z.string().default(''),
+    voiceInputMode: z.enum(['hold_to_talk', 'toggle']).default('hold_to_talk'),
+    voiceTtsEnabled: z.boolean().default(true),
+    voiceAutoPlayAi: z.boolean().default(true),
+    voiceTtsVoiceId: z.string().default(''),
   });
   const defaults = {
+    mistralApiKey: '',
     geminiApiKey: '',
+    anthropicApiKey: '',
+    openaiApiKey: '',
     challengeDepth: 'balanced' as const,
     autoSaveEnabled: true,
     animationsEnabled: true,
     theme: 'light' as const,
+    elevenLabsApiKey: '',
+    voiceInputMode: 'hold_to_talk' as const,
+    voiceTtsEnabled: true,
+    voiceAutoPlayAi: true,
+    voiceTtsVoiceId: '',
   };
   return {
     ThemeSchema,
@@ -26,6 +42,8 @@ vi.mock('../../persistence/settings-store', async () => {
     loadSettings: vi.fn().mockResolvedValue({ ...defaults }),
     saveSettings: vi.fn().mockResolvedValue(undefined),
     updateSettings: vi.fn().mockResolvedValue({ ...defaults }),
+    resolveApiKeys: vi.fn().mockReturnValue({ mistral: '', gemini: '', anthropic: '', openai: '' }),
+    hasEnvFallback: vi.fn().mockReturnValue(false),
   };
 });
 
@@ -162,14 +180,15 @@ describe('Settings component', () => {
       expect(screen.getByLabelText('Gemini API key')).toBeDefined();
     });
 
-    const toggleBtn = screen.getByLabelText('Show API key');
-    fireEvent.click(toggleBtn);
+    const toggleBtns = screen.getAllByLabelText('Show API key');
+    // Click the Gemini show button (second in list: Mistral, Gemini, Anthropic, OpenAI)
+    fireEvent.click(toggleBtns[1]);
 
     const input = screen.getByLabelText('Gemini API key');
     expect(input.getAttribute('type')).toBe('text');
 
-    const hideBtn = screen.getByLabelText('Hide API key');
-    fireEvent.click(hideBtn);
+    const hideBtns = screen.getAllByLabelText('Hide API key');
+    fireEvent.click(hideBtns[0]);
 
     expect(input.getAttribute('type')).toBe('password');
   });
@@ -182,7 +201,7 @@ describe('Settings component', () => {
     });
 
     await waitFor(() => {
-      const status = screen.getByTestId('key-status');
+      const status = screen.getByTestId('gemini-key-status');
       expect(status.textContent).toBe('Not set');
     });
   });
@@ -202,7 +221,7 @@ describe('Settings component', () => {
     fireEvent.change(input, { target: { value: 'AIzaSyDfakekey12345678901' } });
 
     await waitFor(() => {
-      const status = screen.getByTestId('key-status');
+      const status = screen.getByTestId('gemini-key-status');
       expect(status.textContent).toBe('Valid format');
     });
   });
@@ -222,7 +241,7 @@ describe('Settings component', () => {
     fireEvent.change(input, { target: { value: 'short-key' } });
 
     await waitFor(() => {
-      const status = screen.getByTestId('key-status');
+      const status = screen.getByTestId('gemini-key-status');
       expect(status.textContent).toBe('Invalid format');
     });
   });

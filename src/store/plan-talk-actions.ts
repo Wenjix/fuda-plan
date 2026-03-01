@@ -1,8 +1,8 @@
 import { useSessionStore } from './session-store';
 import { useSemanticStore } from './semantic-store';
 import { usePlanTalkStore } from './plan-talk-store';
-import { loadSettings } from '../persistence/settings-store';
-import { getProvider } from '../generation/providers';
+import { loadSettings, resolveApiKeys } from '../persistence/settings-store';
+import { getDefaultProvider } from '../generation/providers';
 import { buildPlanReflectionPrompt } from '../generation/prompts/plan-reflection';
 import { PlanReflectionResponseSchema } from '../core/types';
 import type { PlanTalkTurn, PlanSectionKey, StructuredPlan, PlanSection, UnifiedPlan } from '../core/types';
@@ -43,7 +43,8 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
 
   try {
     const settings = await loadSettings();
-    const provider = getProvider(settings.geminiApiKey ?? '');
+    const apiKeys = resolveApiKeys(settings);
+    const provider = getDefaultProvider(apiKeys);
 
     // Read fresh turns from store (includes the userTurn we just added)
     const allTurns = usePlanTalkStore.getState().turns;

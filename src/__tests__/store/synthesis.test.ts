@@ -8,14 +8,15 @@ import { generatePairs, extractPlanSummary, triggerSynthesis } from '../../store
 // Mock the settings store to avoid IndexedDB in tests
 // ---------------------------------------------------------------------------
 vi.mock('../../persistence/settings-store', () => ({
-  loadSettings: vi.fn().mockResolvedValue({ geminiApiKey: '' }),
+  loadSettings: vi.fn().mockResolvedValue({ geminiApiKey: '', mistralApiKey: '', anthropicApiKey: '', openaiApiKey: '' }),
+  resolveApiKeys: vi.fn().mockReturnValue({ mistral: '', gemini: '', anthropic: '', openai: '' }),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock the generation providers
 // ---------------------------------------------------------------------------
 vi.mock('../../generation/providers', () => ({
-  getProvider: vi.fn().mockReturnValue({
+  getDefaultProvider: vi.fn().mockReturnValue({
     generate: vi.fn().mockResolvedValue('{}'),
     generateStream: vi.fn().mockResolvedValue('{}'),
   }),
@@ -273,8 +274,8 @@ describe('triggerSynthesis full flow', () => {
     );
 
     // Mock getProvider to return a custom mock
-    const { getProvider } = await import('../../generation/providers');
-    vi.mocked(getProvider).mockReturnValue({
+    const { getDefaultProvider } = await import('../../generation/providers');
+    vi.mocked(getDefaultProvider).mockReturnValue({
       generate: vi.fn()
         // C(4,2)=6 pairwise calls, then 1 reduce, then 1 format
         .mockResolvedValueOnce(mockPairwiseResponse)
@@ -342,8 +343,8 @@ describe('triggerSynthesis full flow', () => {
       .mockResolvedValueOnce(mockReduceResponse)
       .mockResolvedValueOnce(mockFormatResponse);
 
-    const { getProvider } = await import('../../generation/providers');
-    vi.mocked(getProvider).mockReturnValue({
+    const { getDefaultProvider } = await import('../../generation/providers');
+    vi.mocked(getDefaultProvider).mockReturnValue({
       generate: mockGenerate,
       generateStream: vi.fn(),
     });

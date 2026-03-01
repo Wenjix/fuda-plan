@@ -13,7 +13,7 @@ export function ApiKeyPrompt({ onSaved }: ApiKeyPromptProps) {
     if (!apiKey.trim() || saving) return;
     setSaving(true);
     try {
-      await updateSettings({ geminiApiKey: apiKey.trim() });
+      await updateSettings({ mistralApiKey: apiKey.trim() });
       onSaved();
     } finally {
       setSaving(false);
@@ -22,16 +22,17 @@ export function ApiKeyPrompt({ onSaved }: ApiKeyPromptProps) {
 
   return (
     <div style={{ padding: 24, maxWidth: 400 }}>
-      <h3 style={{ color: '#e0e0e0', marginBottom: 8 }}>Gemini API Key</h3>
+      <h3 style={{ color: '#e0e0e0', marginBottom: 8 }}>Mistral API Key</h3>
       <p style={{ color: '#8888aa', fontSize: '0.85rem', marginBottom: 16 }}>
-        Enter your Gemini API key to enable AI-powered exploration.
-        Without a key, mock responses will be used.
+        Enter your Mistral API key to enable AI-powered exploration.
+        Additional provider keys (Gemini, Anthropic, OpenAI) can be configured in Settings.
+        Without keys, mock responses will be used.
       </p>
       <input
         type="password"
         value={apiKey}
         onChange={e => setApiKey(e.target.value)}
-        placeholder="AIza..."
+        placeholder="Enter Mistral API key"
         style={{
           width: '100%',
           padding: '10px 14px',

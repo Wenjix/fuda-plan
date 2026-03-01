@@ -1,5 +1,4 @@
 import type { GenerationProvider } from './types';
-import { PROVIDER_MODELS } from './types';
 import {
   fetchWithRetry,
   createTimeoutController,
@@ -8,66 +7,74 @@ import {
   HARD_CEILING_MS,
 } from './fetch-utils';
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = PROVIDER_MODELS.gemini;
+/**
+ * Base class for providers using the OpenAI-compatible chat completions format.
+ * Used by Mistral and OpenAI (both share the same API shape).
+ */
+export class OpenAICompatibleProvider implements GenerationProvider {
+  protected apiKey: string;
+  protected baseUrl: string;
+  protected model: string;
+  protected label: string;
 
-export class GeminiProvider implements GenerationProvider {
-  private apiKey: string;
-
-  constructor(apiKey: string) {
+  constructor(apiKey: string, baseUrl: string, model: string, label: string) {
     this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+    this.model = model;
+    this.label = label;
   }
 
   async generate(prompt: string): Promise<string> {
-    const url = `${GEMINI_API_BASE}/${MODEL}:generateContent?key=${this.apiKey}`;
     const response = await fetchWithRetry(
-      url,
+      this.baseUrl,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-            responseMimeType: 'application/json',
-          },
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+          max_tokens: 2048,
+          response_format: { type: 'json_object' },
         }),
       },
       NON_STREAMING_TIMEOUT_MS,
-      'Gemini API',
+      this.label,
     );
 
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    return data.choices?.[0]?.message?.content ?? '';
   }
 
   async generateStream(
     prompt: string,
-    onChunk: (delta: string) => void
+    onChunk: (delta: string) => void,
   ): Promise<string> {
-    const url = `${GEMINI_API_BASE}/${MODEL}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
-
-    // Hard ceiling abort controller for entire streaming session
     const hardCeiling = createTimeoutController(HARD_CEILING_MS);
 
     const response = await fetchWithRetry(
-      url,
+      this.baseUrl,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-            responseMimeType: 'application/json',
-          },
+          model: this.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.7,
+          max_tokens: 2048,
+          response_format: { type: 'json_object' },
+          stream: true,
         }),
         signal: hardCeiling.controller.signal,
       },
       STREAMING_INACTIVITY_TIMEOUT_MS,
-      'Gemini API',
+      this.label,
     );
 
     const reader = response.body?.getReader();
@@ -81,7 +88,6 @@ export class GeminiProvider implements GenerationProvider {
 
     try {
       while (true) {
-        // Inactivity timeout per chunk read
         const inactivityTimer = setTimeout(
           () => hardCeiling.controller.abort(),
           STREAMING_INACTIVITY_TIMEOUT_MS,
@@ -101,7 +107,7 @@ export class GeminiProvider implements GenerationProvider {
           if (json === '[DONE]') continue;
           try {
             const parsed = JSON.parse(json);
-            const delta = parsed.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+            const delta = parsed.choices?.[0]?.delta?.content ?? '';
             if (delta) {
               accumulated += delta;
               onChunk(delta);

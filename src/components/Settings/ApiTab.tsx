@@ -1,10 +1,31 @@
 import { useState } from 'react';
 import type { AppSettings } from '../../persistence/settings-store.ts';
+import { hasEnvFallback } from '../../persistence/settings-store.ts';
 import styles from './Settings.module.css';
 
 function getGeminiKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
   if (!key) return 'not-set';
   if (key.startsWith('AI') && key.length > 20) return 'valid';
+  return 'invalid';
+}
+
+function getMistralKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
+  if (!key) return 'not-set';
+  if (key.length >= 20) return 'valid';
+  return 'invalid';
+}
+
+function getAnthropicKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
+  if (!key) return 'not-set';
+  if (key.startsWith('sk-ant-') && key.length > 20) return 'valid';
+  if (key.length >= 20) return 'valid';
+  return 'invalid';
+}
+
+function getOpenAIKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
+  if (!key) return 'not-set';
+  if (key.startsWith('sk-') && key.length > 20) return 'valid';
+  if (key.length >= 20) return 'valid';
   return 'invalid';
 }
 
@@ -29,39 +50,114 @@ function statusClass(status: 'not-set' | 'valid' | 'invalid') {
       : styles.statusInvalid;
 }
 
+function EnvFallbackBadge({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted, #999)', marginLeft: 8 }}>
+      Using .env default
+    </span>
+  );
+}
+
+interface ApiKeyFieldProps {
+  legend: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+  status: 'not-set' | 'valid' | 'invalid';
+  testId: string;
+  showEnvFallback: boolean;
+}
+
+function ApiKeyField({ legend, value, onChange, placeholder, ariaLabel, status, testId, showEnvFallback }: ApiKeyFieldProps) {
+  const [show, setShow] = useState(false);
+
+  return (
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>
+        {legend}
+        <EnvFallbackBadge show={showEnvFallback && !value} />
+      </legend>
+      <div className={styles.inputGroup}>
+        <input
+          className={styles.textInput}
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={ariaLabel}
+        />
+        <button
+          type="button"
+          className={styles.toggleButton}
+          onClick={() => setShow((v) => !v)}
+          aria-label={show ? 'Hide API key' : 'Show API key'}
+        >
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      <div className={`${styles.statusIndicator} ${statusClass(status)}`} data-testid={testId}>
+        {STATUS_LABELS[status]}
+      </div>
+    </fieldset>
+  );
+}
+
 export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate: (partial: Partial<AppSettings>) => void }) {
-  const [showGemini, setShowGemini] = useState(false);
   const [showElevenLabs, setShowElevenLabs] = useState(false);
 
+  const mistralStatus = getMistralKeyStatus(settings.mistralApiKey);
   const geminiStatus = getGeminiKeyStatus(settings.geminiApiKey);
+  const anthropicStatus = getAnthropicKeyStatus(settings.anthropicApiKey);
+  const openaiStatus = getOpenAIKeyStatus(settings.openaiApiKey);
   const elevenLabsStatus = getElevenLabsKeyStatus(settings.elevenLabsApiKey);
 
   return (
     <div>
-      <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>Gemini API Key</legend>
-        <div className={styles.inputGroup}>
-          <input
-            className={styles.textInput}
-            type={showGemini ? 'text' : 'password'}
-            value={settings.geminiApiKey}
-            onChange={(e) => onUpdate({ geminiApiKey: e.target.value })}
-            placeholder="AIza..."
-            aria-label="Gemini API key"
-          />
-          <button
-            type="button"
-            className={styles.toggleButton}
-            onClick={() => setShowGemini((v) => !v)}
-            aria-label={showGemini ? 'Hide API key' : 'Show API key'}
-          >
-            {showGemini ? 'Hide' : 'Show'}
-          </button>
-        </div>
-        <div className={`${styles.statusIndicator} ${statusClass(geminiStatus)}`} data-testid="gemini-key-status">
-          {STATUS_LABELS[geminiStatus]}
-        </div>
-      </fieldset>
+      <ApiKeyField
+        legend="Mistral API Key (Expansive lane)"
+        value={settings.mistralApiKey}
+        onChange={(v) => onUpdate({ mistralApiKey: v })}
+        placeholder="Enter Mistral API key"
+        ariaLabel="Mistral API key"
+        status={mistralStatus}
+        testId="mistral-key-status"
+        showEnvFallback={hasEnvFallback('mistral')}
+      />
+
+      <ApiKeyField
+        legend="Gemini API Key (Analytical lane)"
+        value={settings.geminiApiKey}
+        onChange={(v) => onUpdate({ geminiApiKey: v })}
+        placeholder="AIza..."
+        ariaLabel="Gemini API key"
+        status={geminiStatus}
+        testId="gemini-key-status"
+        showEnvFallback={hasEnvFallback('gemini')}
+      />
+
+      <ApiKeyField
+        legend="Anthropic API Key (Pragmatic lane)"
+        value={settings.anthropicApiKey}
+        onChange={(v) => onUpdate({ anthropicApiKey: v })}
+        placeholder="sk-ant-..."
+        ariaLabel="Anthropic API key"
+        status={anthropicStatus}
+        testId="anthropic-key-status"
+        showEnvFallback={hasEnvFallback('anthropic')}
+      />
+
+      <ApiKeyField
+        legend="OpenAI API Key (Socratic lane)"
+        value={settings.openaiApiKey}
+        onChange={(v) => onUpdate({ openaiApiKey: v })}
+        placeholder="sk-..."
+        ariaLabel="OpenAI API key"
+        status={openaiStatus}
+        testId="openai-key-status"
+        showEnvFallback={hasEnvFallback('openai')}
+      />
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>ElevenLabs API Key</legend>

@@ -1,6 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { DBSchema } from 'idb';
 import { z } from 'zod';
+import type { ProviderId, ApiKeys } from '../generation/providers/types';
 
 const SETTINGS_DB_NAME = 'fuda-settings';
 const SETTINGS_DB_VERSION = 1;
@@ -9,7 +10,10 @@ export const ThemeSchema = z.enum(['light', 'dark']).default('light');
 export type Theme = z.infer<typeof ThemeSchema>;
 
 export const AppSettingsSchema = z.object({
+  mistralApiKey: z.string().default(''),
   geminiApiKey: z.string().default(''),
+  anthropicApiKey: z.string().default(''),
+  openaiApiKey: z.string().default(''),
   challengeDepth: z.enum(['gentle', 'balanced', 'intense']).default('balanced'),
   autoSaveEnabled: z.boolean().default(true),
   animationsEnabled: z.boolean().default(true),
@@ -63,4 +67,39 @@ export async function updateSettings(partial: Partial<AppSettings>): Promise<App
   const updated = AppSettingsSchema.parse({ ...current, ...partial });
   await saveSettings(updated);
   return updated;
+}
+
+const ENV_KEY_MAP: Record<ProviderId, string> = {
+  mistral: 'VITE_MISTRAL_API_KEY',
+  gemini: 'VITE_GEMINI_API_KEY',
+  anthropic: 'VITE_ANTHROPIC_API_KEY',
+  openai: 'VITE_OPENAI_API_KEY',
+};
+
+const SETTINGS_KEY_MAP: Record<ProviderId, keyof AppSettings> = {
+  mistral: 'mistralApiKey',
+  gemini: 'geminiApiKey',
+  anthropic: 'anthropicApiKey',
+  openai: 'openaiApiKey',
+};
+
+/**
+ * Resolve API keys: IndexedDB value if set, else VITE_*_API_KEY env var, else ''.
+ */
+export function resolveApiKeys(settings: AppSettings): ApiKeys {
+  const providerIds: ProviderId[] = ['mistral', 'gemini', 'anthropic', 'openai'];
+  const keys = {} as ApiKeys;
+  for (const id of providerIds) {
+    const settingsValue = settings[SETTINGS_KEY_MAP[id]] as string;
+    const envValue = (import.meta.env?.[ENV_KEY_MAP[id]] as string) ?? '';
+    keys[id] = settingsValue || envValue;
+  }
+  return keys;
+}
+
+/**
+ * Check if an env var fallback is active for a given provider.
+ */
+export function hasEnvFallback(providerId: ProviderId): boolean {
+  return !!(import.meta.env?.[ENV_KEY_MAP[providerId]] as string);
 }

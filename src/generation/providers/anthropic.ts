@@ -8,66 +8,75 @@ import {
   HARD_CEILING_MS,
 } from './fetch-utils';
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = PROVIDER_MODELS.gemini;
+/**
+ * Strips markdown code fences from response text.
+ * Anthropic has no native JSON mode, so the model may wrap JSON in ```json ... ```.
+ */
+function stripCodeFences(text: string): string {
+  return text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/, '');
+}
 
-export class GeminiProvider implements GenerationProvider {
+export class AnthropicProvider implements GenerationProvider {
   private apiKey: string;
+  private model: string;
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
+    this.model = PROVIDER_MODELS.anthropic;
   }
 
   async generate(prompt: string): Promise<string> {
-    const url = `${GEMINI_API_BASE}/${MODEL}:generateContent?key=${this.apiKey}`;
     const response = await fetchWithRetry(
-      url,
+      'https://api.anthropic.com/v1/messages',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-            responseMimeType: 'application/json',
-          },
+          model: this.model,
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
         }),
       },
       NON_STREAMING_TIMEOUT_MS,
-      'Gemini API',
+      'Anthropic API',
     );
 
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const text = data.content?.[0]?.text ?? '';
+    return stripCodeFences(text);
   }
 
   async generateStream(
     prompt: string,
-    onChunk: (delta: string) => void
+    onChunk: (delta: string) => void,
   ): Promise<string> {
-    const url = `${GEMINI_API_BASE}/${MODEL}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
-
-    // Hard ceiling abort controller for entire streaming session
     const hardCeiling = createTimeoutController(HARD_CEILING_MS);
 
     const response = await fetchWithRetry(
-      url,
+      'https://api.anthropic.com/v1/messages',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-            responseMimeType: 'application/json',
-          },
+          model: this.model,
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
+          stream: true,
         }),
         signal: hardCeiling.controller.signal,
       },
       STREAMING_INACTIVITY_TIMEOUT_MS,
-      'Gemini API',
+      'Anthropic API',
     );
 
     const reader = response.body?.getReader();
@@ -81,7 +90,6 @@ export class GeminiProvider implements GenerationProvider {
 
     try {
       while (true) {
-        // Inactivity timeout per chunk read
         const inactivityTimer = setTimeout(
           () => hardCeiling.controller.abort(),
           STREAMING_INACTIVITY_TIMEOUT_MS,
@@ -101,10 +109,12 @@ export class GeminiProvider implements GenerationProvider {
           if (json === '[DONE]') continue;
           try {
             const parsed = JSON.parse(json);
-            const delta = parsed.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-            if (delta) {
-              accumulated += delta;
-              onChunk(delta);
+            if (parsed.type === 'content_block_delta') {
+              const delta = parsed.delta?.text ?? '';
+              if (delta) {
+                accumulated += delta;
+                onChunk(delta);
+              }
             }
           } catch {
             // Skip malformed SSE lines
@@ -115,6 +125,6 @@ export class GeminiProvider implements GenerationProvider {
       hardCeiling.clear();
     }
 
-    return accumulated;
+    return stripCodeFences(accumulated);
   }
 }

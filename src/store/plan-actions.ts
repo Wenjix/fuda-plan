@@ -3,9 +3,9 @@ import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { generateId } from '../utils/ids';
 import { buildLanePlanPrompt } from '../generation/prompts/lane-plan';
-import { getProvider } from '../generation/providers';
+import { getProviderForPersona } from '../generation/providers';
 import { parseAndValidate } from '../core/validation/schema-gates';
-import { loadSettings } from '../persistence/settings-store';
+import { loadSettings, resolveApiKeys } from '../persistence/settings-store';
 import { sessionTransition } from '../core/fsm/session-fsm';
 
 export async function generateLanePlan(laneId: string, personaId: PersonaId): Promise<LanePlan> {
@@ -30,9 +30,10 @@ export async function generateLanePlan(laneId: string, personaId: PersonaId): Pr
   // Build prompt
   const prompt = buildLanePlanPrompt(promotedNodes, personaId, session.topic);
 
-  // Generate via provider
+  // Generate via provider (per-persona routing)
   const settings = await loadSettings();
-  const provider = getProvider(settings.geminiApiKey ?? '');
+  const apiKeys = resolveApiKeys(settings);
+  const provider = getProviderForPersona(personaId, apiKeys);
   const raw = await provider.generate(prompt);
 
   // Parse and validate against StructuredPlan schema

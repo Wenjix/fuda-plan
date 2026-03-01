@@ -13,7 +13,7 @@ import { nodeTransition } from '../core/fsm/node-fsm';
 import { generate } from '../generation/pipeline';
 import type { GenerateResult } from '../generation/pipeline';
 import { generateId } from '../utils/ids';
-import { loadSettings } from '../persistence/settings-store';
+import { loadSettings, resolveApiKeys } from '../persistence/settings-store';
 import { isOnline } from '../utils/online-status';
 import { runQualityGates } from '../core/validation/quality-gates';
 import { concurrencyController } from '../generation/rate-limiter';
@@ -516,9 +516,9 @@ export async function runJob(
     // Gather current graph state for the pipeline
     const { nodes, edges, lanes: sessionLanes } = useSemanticStore.getState();
 
-    // Load API key from persisted settings
+    // Load API keys from persisted settings
     const settings = await loadSettings();
-    const apiKey = settings.geminiApiKey;
+    const apiKeys = resolveApiKeys(settings);
 
     // Check online status before attempting generation
     if (!isOnline()) {
@@ -532,7 +532,7 @@ export async function runJob(
       edges,
       session,
       lanes: sessionLanes,
-      apiKey,
+      apiKeys,
       onChunk: (delta: string) => {
         useViewStore.getState().appendStream(job.targetNodeId, delta);
       },

@@ -11,17 +11,21 @@ import { MAX_DIALOGUE_TURNS, addUserTurn } from '../../store/dialogue-actions';
 // Mock loadSettings to avoid indexedDB dependency (concludeDialogue uses it)
 vi.mock('../../persistence/settings-store', () => ({
   loadSettings: vi.fn().mockResolvedValue({
+    mistralApiKey: '',
     geminiApiKey: '',
+    anthropicApiKey: '',
+    openaiApiKey: '',
     challengeDepth: 'balanced',
     autoSaveEnabled: true,
     animationsEnabled: true,
     theme: 'light',
   }),
+  resolveApiKeys: vi.fn().mockReturnValue({ mistral: '', gemini: '', anthropic: '', openai: '' }),
 }));
 
-// Mock getProvider to avoid real API calls from concludeDialogue
+// Mock providers to avoid real API calls from concludeDialogue
 vi.mock('../../generation/providers', () => ({
-  getProvider: vi.fn().mockReturnValue({
+  getProviderForPersona: vi.fn().mockReturnValue({
     generate: vi.fn().mockResolvedValue('{"summary":"test","bullets":["b"]}'),
     generateStream: vi.fn().mockResolvedValue('{"summary":"test","bullets":["b"]}'),
   }),

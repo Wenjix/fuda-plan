@@ -5,9 +5,10 @@ import type {
   PlanningSession,
   ModelLane,
 } from '../core/types';
+import type { ApiKeys } from './providers/types';
 import { compileContext } from '../core/graph/context-compiler';
 import { buildPrompt } from './prompts';
-import { getProvider } from './providers';
+import { getProviderForPersona } from './providers';
 import { parseAndValidate } from '../core/validation/schema-gates';
 import { rateLimiter } from './rate-limiter';
 
@@ -18,7 +19,7 @@ export interface GenerateOptions {
   edges: SemanticEdge[];
   session: PlanningSession;
   lanes: ModelLane[];
-  apiKey: string;
+  apiKeys: ApiKeys;
   onChunk?: (delta: string) => void;
 }
 
@@ -55,8 +56,8 @@ export async function generate(
   // 4. Acquire rate limiter token before calling provider
   await rateLimiter.acquire();
 
-  // 5. Call provider
-  const provider = getProvider(options.apiKey);
+  // 5. Call provider (resolved per persona → provider mapping)
+  const provider = getProviderForPersona(personaId, options.apiKeys);
   const raw = options.onChunk
     ? await provider.generateStream(prompt, options.onChunk)
     : await provider.generate(prompt);

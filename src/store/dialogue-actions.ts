@@ -1,4 +1,4 @@
-import type { DialecticMode, DialogueTurn, ChallengeDepth } from '../core/types';
+import type { DialecticMode, DialogueTurn, ChallengeDepth, SemanticNode } from '../core/types';
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
 import { useViewStore } from './view-store';
@@ -6,9 +6,10 @@ import { useToastStore } from './toast-store';
 import { generateId } from '../utils/ids';
 import { compileContext } from '../core/graph/context-compiler';
 import { buildDialoguePrompt, buildConcludeSynthesisPrompt } from '../generation/prompts/dialogue';
-import { getProvider } from '../generation/providers';
+import { getProviderForPersona } from '../generation/providers';
+import type { ApiKeys } from '../generation/providers/types';
 import { parseAndValidate } from '../core/validation/schema-gates';
-import { loadSettings } from '../persistence/settings-store';
+import { loadSettings, resolveApiKeys } from '../persistence/settings-store';
 
 export const MAX_DIALOGUE_TURNS = 20;
 
@@ -90,9 +91,10 @@ export async function generateDialogueResponse(
   // Build dialogue prompt
   const prompt = buildDialoguePrompt(mode, turns, context, effectiveDepth);
 
-  // Get provider
+  // Get provider (routed by node's lane persona)
   const settings = await loadSettings();
-  const provider = getProvider(settings.geminiApiKey ?? '');
+  const apiKeys = resolveApiKeys(settings);
+  const provider = resolveProviderForNode(nodeId, nodes, apiKeys);
 
   // Generate with streaming
   const streamKey = `dialogue-${nodeId}`;
@@ -148,7 +150,8 @@ export async function concludeDialogue(nodeId: string): Promise<void> {
   const prompt = buildConcludeSynthesisPrompt(turns, context, node.answer);
 
   const settings = await loadSettings();
-  const provider = getProvider(settings.geminiApiKey ?? '');
+  const apiKeys = resolveApiKeys(settings);
+  const provider = resolveProviderForNode(nodeId, nodes, apiKeys);
   const raw = await provider.generate(prompt);
 
   const result = parseAndValidate('answer', raw);
@@ -201,4 +204,15 @@ function backOffDepth(depth: ChallengeDepth): ChallengeDepth {
     case 'gentle':
       return 'gentle';
   }
+}
+
+/**
+ * Resolve the provider for a node by looking up its lane's persona.
+ */
+function resolveProviderForNode(nodeId: string, nodes: SemanticNode[], apiKeys: ApiKeys) {
+  const node = nodes.find(n => n.id === nodeId);
+  const lanes = useSemanticStore.getState().lanes;
+  const lane = lanes.find(l => l.id === node?.laneId);
+  const personaId = lane?.personaId ?? 'analytical';
+  return getProviderForPersona(personaId, apiKeys);
 }
