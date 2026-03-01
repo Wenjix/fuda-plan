@@ -1,0 +1,103 @@
+.card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 12px;
+  padding: 16px;
+  min-width: 280px;
+  max-width: 360px;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.card:hover {
+  border-color: #4a4a7a;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pathType {
+  font-size: 0.7rem;
+  color: #7b7b9a;
+  text-transform: uppercase;
+}
+
+.question {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.answer {
+  margin-bottom: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #2a2a4a;
+}
+
+.summary {
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.bullets {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding-left: 16px;
+  color: #b0b0c0;
+}
+
+.bullets li {
+  margin-bottom: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.answerBtn, .retryBtn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #4a4a7a;
+  background: #2a2a4a;
+  color: #e0e0e0;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.answerBtn:hover { background: #3a3a5a; }
+.retryBtn { border-color: #d94f4f; color: #d94f4f; }
+.retryBtn:hover { background: #3a1a1a; }
+
+.branchActions {
+  display: flex;
+  gap: 4px;
+}
+
+.branchActions button {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #3a3a5a;
+  background: transparent;
+  color: #8888aa;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.branchActions button:hover {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+.handle {
+  width: 8px;
+  height: 8px;
+  background: #4a4a7a;
+}

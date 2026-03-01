@@ -1,0 +1,59 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  background: #12121a;
+  border-bottom: 1px solid #2a2a3a;
+  flex-shrink: 0;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topic {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e0e0e0;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #1a3a2a;
+  color: #3daa6d;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.center {
+  font-size: 0.75rem;
+  color: #5a5a7a;
+  text-transform: uppercase;
+}
+
+.mode {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #1a1a2e;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nodeCount {
+  font-size: 0.75rem;
+  color: #8888aa;
+}

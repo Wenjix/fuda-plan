@@ -1,19 +1,11 @@
+import type { Node, Edge } from '@xyflow/react';
 import type { SemanticNode, SemanticEdge, NodeType } from '../core/types';
 import type { ViewNodeState } from './view-store';
 
-export interface RFNode {
-  id: string;
-  type: string;
-  position: { x: number; y: number };
-  data: SemanticNode;
-}
-
-export interface RFEdge {
-  id: string;
-  source: string;
-  target: string;
-  type: string;
-}
+export type ExplorationCardNode = Node<SemanticNode, 'explorationCard'>;
+export type PlanCardNode = Node<SemanticNode, 'planCard'>;
+export type RFNode = ExplorationCardNode | PlanCardNode;
+export type RFEdge = Edge<Record<string, never>>;
 
 export function getComponentType(nodeType: NodeType): string {
   switch (nodeType) {
@@ -35,17 +27,17 @@ export function projectToReactFlow(
   const laneNodes = semanticNodes.filter(n => n.laneId === activeLaneId);
   const laneEdges = semanticEdges.filter(e => e.laneId === activeLaneId);
 
-  const nodes = laneNodes.map(sn => {
+  const nodes: RFNode[] = laneNodes.map(sn => {
     const view = viewStates.get(sn.id);
     return {
       id: sn.id,
       type: getComponentType(sn.nodeType),
       position: view?.position ?? { x: 0, y: 0 },
       data: sn,
-    };
+    } as RFNode;
   });
 
-  const edges = laneEdges.map(se => ({
+  const edges: RFEdge[] = laneEdges.map(se => ({
     id: se.id,
     source: se.sourceNodeId,
     target: se.targetNodeId,

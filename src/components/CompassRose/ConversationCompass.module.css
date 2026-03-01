@@ -1,0 +1,63 @@
+.compass {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.center {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #2a2a4a;
+  border: 2px solid #4a4a7a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.centerLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #8888aa;
+}
+
+.direction {
+  position: absolute;
+  width: 100px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid #3a3a5a;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.direction:hover:not(:disabled) {
+  border-color: #7b4fbf;
+  background: #2a2a4a;
+}
+
+.direction:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.directionLabel {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.directionQuestion {
+  display: block;
+  font-size: 0.65rem;
+  color: #8888aa;
+  line-height: 1.3;
+}
