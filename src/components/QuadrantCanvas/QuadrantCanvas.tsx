@@ -82,6 +82,11 @@ export function QuadrantCanvas() {
       computeLaneScore(nodes, p.laneId),
     ) as [number, number, number, number];
 
+    // Don't recompute splits until every pane has at least one node —
+    // prevents skewing while generation results arrive asynchronously.
+    const allPanesStarted = scores.every(s => s > 0);
+    if (!allPanesStarted) return;
+
     const { colSplit: newCol, rowSplit: newRow } = computeAutoSplits(scores);
     setColSplit(newCol);
     setRowSplit(newRow);

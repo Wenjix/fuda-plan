@@ -9,6 +9,7 @@ export function TopicInput() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const layoutMode = useSessionStore(s => s.layoutMode);
+  const setLayoutMode = useSessionStore(s => s.setLayoutMode);
 
   const isValid = topic.trim().length >= 10;
 
@@ -62,6 +63,22 @@ export function TopicInput() {
               {topic.trim().length}/10 min
             </span>
             {error && <span className={styles.error}>{error}</span>}
+            <div className={styles.layoutToggle}>
+              <button
+                className={`${styles.layoutBtn} ${layoutMode === 'single' ? styles.layoutBtnActive : ''}`}
+                onClick={() => setLayoutMode('single')}
+                type="button"
+              >
+                Canvas
+              </button>
+              <button
+                className={`${styles.layoutBtn} ${layoutMode === 'quadrant' ? styles.layoutBtnActive : ''}`}
+                onClick={() => setLayoutMode('quadrant')}
+                type="button"
+              >
+                Quadrant
+              </button>
+            </div>
             <button
               className={styles.startBtn}
               onClick={handleSubmit}
