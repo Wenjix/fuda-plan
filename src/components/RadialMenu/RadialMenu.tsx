@@ -96,6 +96,7 @@ export function RadialMenu() {
               style={{
                 left: x,
                 top: y,
+                backgroundColor: p.accent,
                 borderColor: p.accent,
                 transitionDelay: `${i * 30}ms`,
               }}
