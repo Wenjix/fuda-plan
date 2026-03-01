@@ -8,10 +8,9 @@ import { PromotionBadge } from '../PromotionBadge/PromotionBadge';
 import { PromotionModal } from '../PromotionBadge/PromotionModal';
 import { useViewStore } from '../../store/view-store';
 import { useSemanticStore } from '../../store/semantic-store';
-import { answerNode, branchFromNode } from '../../store/actions';
+import { answerNode } from '../../store/actions';
 import { promoteNode, unpromoteNode } from '../../store/promotion-actions';
 import { canPromote } from '../../core/fsm/node-fsm';
-import type { PathType } from '../../core/types';
 import styles from './ExplorationCard.module.css';
 
 type ExplorationCardData = SemanticNode & { _hiddenDescendants?: number };
@@ -37,12 +36,6 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
   const handleAnswer = useCallback(() => {
     if (node.fsmState === 'idle') {
       void answerNode(id);
-    }
-  }, [node.fsmState, id]);
-
-  const handleBranch = useCallback((pathType: string) => {
-    if (node.fsmState === 'resolved') {
-      void branchFromNode(id, pathType as PathType);
     }
   }, [node.fsmState, id]);
 
@@ -113,7 +106,7 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
         <div className={styles.answer}>
           <p className={styles.summary}>{node.answer.summary}</p>
           <ul className={styles.bullets}>
-            {node.answer.bullets.map((b, i) => (
+            {node.answer.bullets?.map((b, i) => (
               <li key={i}>{b}</li>
             ))}
           </ul>
@@ -131,13 +124,6 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
           <button className={styles.retryBtn} onClick={handleAnswer}>
             Retry
           </button>
-        )}
-        {node.fsmState === 'resolved' && (
-          <div className={styles.branchActions}>
-            <button onClick={() => handleBranch('go-deeper')}>Go Deeper</button>
-            <button onClick={() => handleBranch('challenge')}>Challenge</button>
-            <button onClick={() => handleBranch('connect')}>Connect</button>
-          </div>
         )}
         {node.fsmState === 'resolved' && (
           <button className={styles.discussBtn} onClick={() => openDialoguePanel(id)}>

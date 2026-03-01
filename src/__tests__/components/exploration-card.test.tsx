@@ -14,11 +14,10 @@ vi.mock('@xyflow/react', () => ({
 // Mock store actions
 vi.mock('../../store/actions', () => ({
   answerNode: vi.fn(),
-  branchFromNode: vi.fn(),
 }))
 
 import { ExplorationCard } from '../../components/ExplorationCard/ExplorationCard'
-import { answerNode, branchFromNode } from '../../store/actions'
+import { answerNode } from '../../store/actions'
 
 function makeNodeData(overrides?: Partial<SemanticNode>): SemanticNode {
   const now = new Date().toISOString()
@@ -97,17 +96,11 @@ describe('ExplorationCard', () => {
     expect(screen.getByText('Retry')).toBeDefined()
   })
 
-  it('renders branch buttons when resolved', () => {
+  it('does not render inline branch buttons when resolved (branching via radial menu)', () => {
     renderCard(makeNodeData({ fsmState: 'resolved' }))
-    expect(screen.getByText('Go Deeper')).toBeDefined()
-    expect(screen.getByText('Challenge')).toBeDefined()
-    expect(screen.getByText('Connect')).toBeDefined()
-  })
-
-  it('calls branchFromNode with correct pathType on branch click', () => {
-    renderCard(makeNodeData({ fsmState: 'resolved' }))
-    fireEvent.click(screen.getByText('Go Deeper'))
-    expect(branchFromNode).toHaveBeenCalledWith('node-1', 'go-deeper')
+    expect(screen.queryByText('Go Deeper')).toBeNull()
+    expect(screen.queryByText('Challenge')).toBeNull()
+    expect(screen.queryByText('Connect')).toBeNull()
   })
 
   it('renders "Discuss" button when resolved', () => {
