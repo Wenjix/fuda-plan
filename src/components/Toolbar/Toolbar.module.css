@@ -51,6 +51,34 @@
   color: var(--status-text);
   text-transform: uppercase;
   font-weight: 600;
+  transition: background 0.3s, color 0.3s;
+  cursor: default;
+}
+
+.statusExploring {
+  background: #1e3a5f;
+  color: #7fb3e0;
+}
+
+.statusLanePlanning {
+  background: #4a3500;
+  color: #f5c542;
+}
+
+.statusSynthesisReady {
+  background: #1a4731;
+  color: #6ee7a0;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.statusSynthesized {
+  background: #3b1f5e;
+  color: #c084fc;
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .center {
@@ -173,4 +201,15 @@
   color: var(--accent-color);
   border-color: var(--accent-color);
   background: var(--btn-accent-bg-hover);
+}
+
+.planTogglePulse {
+  animation: planPulse 2s ease-in-out infinite;
+  border-color: #6ee7a0;
+  color: #6ee7a0;
+}
+
+@keyframes planPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(110, 231, 160, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(110, 231, 160, 0); }
 }

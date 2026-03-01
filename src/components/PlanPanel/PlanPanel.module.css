@@ -31,6 +31,20 @@
   text-align: center;
 }
 
+.emptyHeading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.emptyHint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
 .emptyText {
   font-size: 0.9rem;
   color: var(--text-muted);

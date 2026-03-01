@@ -16,6 +16,14 @@ import styles from './ExplorationCard.module.css';
 type ExplorationCardData = SemanticNode & { _hiddenDescendants?: number };
 type ExplorationCardNodeType = Node<ExplorationCardData, 'explorationCard'>;
 
+const REASON_LABELS: Record<PromotionReason, string> = {
+  insightful_reframe: 'Reframe',
+  actionable_detail: 'Actionable',
+  risk_identification: 'Risk',
+  assumption_challenge: 'Challenge',
+  cross_domain_link: 'Cross-link',
+};
+
 function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) {
   const node = data;
   const streamBuffer = useViewStore(s => s.streamBuffers.get(id) ?? '');
@@ -24,6 +32,9 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
   const viewNode = useViewStore(s => s.viewNodes.get(id));
   const isStreaming = node.fsmState === 'generating';
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const promotionReason = useSemanticStore(s =>
+    node.promoted ? s.promotions.find(p => p.nodeId === id)?.reason : undefined,
+  );
 
   // Check if this node has children (is a parent) by checking edges
   const hasChildren = useSemanticStore(s =>
@@ -43,9 +54,17 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
     if (node.promoted) {
       unpromoteNode(id);
     } else if (canPromote(node.fsmState)) {
-      setShowPromotionModal(true);
+      // Quick-promote with default reason
+      promoteNode(id, 'actionable_detail');
     }
   }, [node.promoted, node.fsmState, id]);
+
+  const handlePromotionContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!node.promoted && canPromote(node.fsmState)) {
+      setShowPromotionModal(true);
+    }
+  }, [node.promoted, node.fsmState]);
 
   const handlePromotionConfirm = useCallback((reason: PromotionReason, note: string) => {
     promoteNode(id, reason, note || undefined);
@@ -60,8 +79,31 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
     toggleCollapse(id);
   }, [toggleCollapse, id]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+P: open promotion modal
+        if (!node.promoted && canPromote(node.fsmState)) {
+          setShowPromotionModal(true);
+        }
+      } else {
+        // P: quick-promote / unpromote
+        if (node.promoted) {
+          unpromoteNode(id);
+        } else if (canPromote(node.fsmState)) {
+          promoteNode(id, 'actionable_detail');
+        }
+      }
+    }
+  }, [node.promoted, node.fsmState, id]);
+
   return (
-    <div className={styles.card}>
+    <div
+      className={`${styles.card} ${node.promoted ? styles.promoted : ''}`}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
       <Handle type="target" position={Position.Top} className={styles.handle} />
 
       <div className={styles.header}>
@@ -72,8 +114,12 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
         <PromotionBadge
           isPromoted={node.promoted}
           onClick={handlePromotionClick}
+          onContextMenu={handlePromotionContextMenu}
           disabled={!canPromote(node.fsmState) && !node.promoted}
         />
+        {promotionReason && (
+          <span className={styles.promotionTag}>{REASON_LABELS[promotionReason]}</span>
+        )}
         {hasChildren && (
           <button
             className={styles.collapseBtn}
