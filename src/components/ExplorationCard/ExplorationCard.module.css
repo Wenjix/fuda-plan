@@ -135,3 +135,36 @@
   height: 8px;
   background: var(--handle-color);
 }
+
+/* Compact variant for small quadrant panes (<480px) */
+:global(.pane-compact) .card {
+  min-width: 220px;
+  max-width: 260px;
+  padding: 10px;
+}
+
+:global(.pane-compact) .question {
+  font-size: 0.82rem;
+  margin-bottom: 8px;
+}
+
+:global(.pane-compact) .summary {
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+}
+
+:global(.pane-compact) .bullets {
+  font-size: 0.72rem;
+  padding-left: 12px;
+}
+
+:global(.pane-compact) .answerBtn,
+:global(.pane-compact) .retryBtn {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+}
+
+:global(.pane-compact) .discussBtn {
+  padding: 3px 8px;
+  font-size: 0.68rem;
+}

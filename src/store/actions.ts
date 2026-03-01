@@ -193,9 +193,10 @@ export async function exploreAllLanes(
 
     useSemanticStore.getState().addNode(rootNode);
 
+    // Each pane has its own viewport, so all roots start at origin
     const viewNode: ViewNodeState = {
       semanticId: rootNode.id,
-      position: { x: laneIndex * (NODE_WIDTH + HORIZONTAL_GAP * 2), y: 0 },
+      position: { x: 0, y: 0 },
       isCollapsed: false,
       isAnswerVisible: false,
       isNew: true,

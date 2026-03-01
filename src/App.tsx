@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSessionStore } from './store/session-store';
 import { useSemanticStore } from './store/semantic-store';
 import { useViewStore } from './store/view-store';
@@ -6,23 +6,31 @@ import { switchSession, deleteSession, listSessions } from './store/workspace-ac
 import { generateLanePlan } from './store/plan-actions';
 import { triggerSynthesis } from './store/synthesis-actions';
 import { toggleTerminal } from './store/terminal-actions';
+import { addUserTurn, generateDialogueResponse, concludeDialogue } from './store/dialogue-actions';
 import { usePlanTalkStore } from './store/plan-talk-store';
 import { TopicInput } from './components/TopicInput/TopicInput';
 import { FudaCanvas } from './components/Canvas/FudaCanvas';
+import { QuadrantCanvas } from './components/QuadrantCanvas';
 import { PlanPanel } from './components/PlanPanel/PlanPanel';
+import { DialoguePanel } from './components/DialoguePanel/DialoguePanel';
 import { SessionList } from './components/SessionList/SessionList';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { PlanTalkModal } from './components/PlanTalkModal/PlanTalkModal';
 import { TerminalDrawer } from './components/TerminalDrawer/TerminalDrawer';
 import { useTheme } from './components/Settings/ThemeProvider';
+import type { DialecticMode } from './core/types';
 import './App.css';
 
 function App() {
   useTheme();
   const uiMode = useSessionStore(s => s.uiMode);
   const session = useSessionStore(s => s.session);
+  const layoutMode = useSessionStore(s => s.layoutMode);
   const planPanelOpen = useSessionStore(s => s.planPanelOpen);
   const terminalOpen = useViewStore(s => s.terminalOpen);
+  const dialogueNodeId = useViewStore(s => s.dialoguePanelNodeId);
+  const closeDialogue = useViewStore(s => s.closeDialoguePanel);
+  const [dialogueGenerating, setDialogueGenerating] = useState(false);
 
   // On initial mount with no session, check IDB for saved sessions
   useEffect(() => {
@@ -79,6 +87,24 @@ function App() {
     }
   }, []);
 
+  const handleDialogueSend = useCallback((content: string, mode: DialecticMode) => {
+    if (!dialogueNodeId) return;
+    addUserTurn(dialogueNodeId, content, mode);
+    setDialogueGenerating(true);
+    generateDialogueResponse(dialogueNodeId, mode)
+      .catch((err) => console.error('Dialogue generation failed:', err))
+      .finally(() => setDialogueGenerating(false));
+  }, [dialogueNodeId]);
+
+  const handleDialogueConclude = useCallback(() => {
+    if (!dialogueNodeId) return;
+    setDialogueGenerating(true);
+    concludeDialogue(dialogueNodeId)
+      .then(() => closeDialogue())
+      .catch((err) => console.error('Dialogue conclude failed:', err))
+      .finally(() => setDialogueGenerating(false));
+  }, [dialogueNodeId, closeDialogue]);
+
   const handleTalkToPlan = useCallback(() => {
     usePlanTalkStore.getState().open();
   }, []);
@@ -112,10 +138,10 @@ function App() {
         {(uiMode === 'compass' || uiMode === 'exploring') && (
           <div className="exploring-layout">
             <div className="exploring-content">
-              <FudaCanvas />
+              {layoutMode === 'quadrant' ? <QuadrantCanvas /> : <FudaCanvas />}
               {terminalOpen && <TerminalDrawer />}
             </div>
-            {planPanelOpen && (
+            {planPanelOpen && layoutMode === 'single' && (
               <div className="plan-panel-container">
                 <PlanPanel
                   onGeneratePlan={handleGeneratePlan}
@@ -124,6 +150,27 @@ function App() {
                 />
               </div>
             )}
+            {planPanelOpen && layoutMode === 'quadrant' && (
+              <div className="plan-panel-overlay">
+                <PlanPanel
+                  onGeneratePlan={handleGeneratePlan}
+                  onSynthesize={handleSynthesize}
+                  onTalkToPlan={handleTalkToPlan}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {/* DialoguePanel overlay — z-index: 100 */}
+        {dialogueNodeId && (uiMode === 'exploring' || uiMode === 'compass') && (
+          <div className="dialogue-panel-overlay">
+            <DialoguePanel
+              nodeId={dialogueNodeId}
+              onClose={closeDialogue}
+              onSendMessage={handleDialogueSend}
+              onConclude={handleDialogueConclude}
+              isGenerating={dialogueGenerating}
+            />
           </div>
         )}
       </main>

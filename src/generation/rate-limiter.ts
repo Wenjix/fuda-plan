@@ -130,12 +130,12 @@ export async function handleRateLimit(response: Response): Promise<number> {
   return waitMs;
 }
 
-// Singleton instances
-export const rateLimiter = new TokenBucketRateLimiter();
-export const concurrencyController = new ConcurrencyController();
+// Singleton instances — burst=4 and maxConcurrent=4 to support 4-lane quadrant burst
+export const rateLimiter = new TokenBucketRateLimiter(12, 4);
+export const concurrencyController = new ConcurrencyController(4);
 
 /** Reset singletons for testing — refills rate limiter tokens to max. */
 export function resetForTesting(): void {
-  (rateLimiter as { tokens: number; lastRefill: number }).tokens = 3;
+  (rateLimiter as { tokens: number; lastRefill: number }).tokens = 4;
   (rateLimiter as { lastRefill: number }).lastRefill = Date.now();
 }

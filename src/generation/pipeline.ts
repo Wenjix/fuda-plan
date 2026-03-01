@@ -39,11 +39,10 @@ export async function generate(
     options.edges,
   );
 
-  // 2. Resolve persona from active lane
-  const activeLane = options.lanes.find(
-    (l) => l.id === options.session.activeLaneId,
-  );
-  const personaId = activeLane?.personaId ?? 'analytical';
+  // 2. Resolve persona from the target node's lane (not the active lane)
+  const targetNode = options.nodes.find(n => n.id === options.targetNodeId);
+  const targetLane = options.lanes.find(l => l.id === targetNode?.laneId);
+  const personaId = targetLane?.personaId ?? 'analytical';
 
   // 3. Build prompt with context + persona
   const prompt = buildPrompt(

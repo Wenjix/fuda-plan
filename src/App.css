@@ -39,3 +39,36 @@
   overflow-y: auto;
   border-left: 1px solid var(--border-color);
 }
+
+.plan-panel-overlay {
+  position: fixed;
+  top: 48px; /* toolbar height */
+  right: 0;
+  bottom: 0;
+  width: 380px;
+  z-index: 100;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-color);
+  background: var(--plan-bg);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+}
+
+.dialogue-panel-overlay {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  z-index: 100;
+  overflow-y: auto;
+  border-left: 1px solid var(--border-color);
+  background: var(--dialogue-bg);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 1279px) {
+  .plan-panel-overlay,
+  .dialogue-panel-overlay {
+    width: 320px;
+  }
+}

@@ -1,12 +1,14 @@
 import { useState, useCallback } from 'react';
 import type { KeyboardEvent } from 'react';
-import { createSession, explore } from '../../store/actions.ts';
+import { useSessionStore } from '../../store/session-store.ts';
+import { createSession, explore, exploreAllLanes } from '../../store/actions.ts';
 import styles from './TopicInput.module.css';
 
 export function TopicInput() {
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const layoutMode = useSessionStore(s => s.layoutMode);
 
   const isValid = topic.trim().length >= 10;
 
@@ -16,15 +18,20 @@ export function TopicInput() {
     setError('');
     try {
       const session = await createSession(topic.trim());
-      // Start exploration on the first lane
-      const laneId = session.activeLaneId;
-      await explore(session, laneId, topic.trim());
+      if (layoutMode === 'quadrant') {
+        // Quadrant mode: start all 4 lanes simultaneously
+        await exploreAllLanes(session, topic.trim());
+      } else {
+        // Single-lane mode: start exploration on the first lane
+        const laneId = session.activeLaneId;
+        await explore(session, laneId, topic.trim());
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create session');
     } finally {
       setLoading(false);
     }
-  }, [topic, isValid, loading]);
+  }, [topic, isValid, loading, layoutMode]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

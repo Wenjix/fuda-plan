@@ -166,6 +166,28 @@
   --confirm-no-text: #888899;
   --confirm-no-hover-bg: #f0f0f5;
 
+  /* Quadrant layout */
+  --quadrant-splitter-bg: #d0d0d8;
+  --quadrant-splitter-hover: var(--accent-color);
+  --quadrant-splitter-width: 4px;
+  --quadrant-pane-border: var(--border-color);
+  --quadrant-pane-bg: var(--canvas-bg);
+
+  /* Lane header bar */
+  --lane-header-height: 36px;
+  --lane-header-bg: var(--bg-secondary);
+  --lane-header-text: var(--text-primary);
+
+  /* Focus ring */
+  --quadrant-focus-ring: var(--accent-color);
+  --quadrant-focus-ring-width: 2px;
+
+  /* Lane colors */
+  --lane-expansive: #7B4FBF;
+  --lane-analytical: #4A90D9;
+  --lane-pragmatic: #3DAA6D;
+  --lane-socratic: #D94F4F;
+
   /* Terminal (dark bg in both themes — standard practice) */
   --terminal-bg: #1e1e2e;
   --terminal-header-bg: #181825;
@@ -342,6 +364,25 @@
   --confirm-no-border: #3a3a5a;
   --confirm-no-text: #8888aa;
   --confirm-no-hover-bg: #1a1a2e;
+
+  /* Quadrant layout */
+  --quadrant-splitter-bg: #2a2a4a;
+  --quadrant-splitter-hover: var(--accent-color);
+  --quadrant-pane-border: var(--border-color);
+  --quadrant-pane-bg: var(--canvas-bg);
+
+  /* Lane header bar */
+  --lane-header-bg: var(--bg-secondary);
+  --lane-header-text: var(--text-primary);
+
+  /* Focus ring */
+  --quadrant-focus-ring: var(--accent-color);
+
+  /* Lane colors (brighter for dark mode) */
+  --lane-expansive: #9B7FDF;
+  --lane-analytical: #6AB0F9;
+  --lane-pragmatic: #5DCA8D;
+  --lane-socratic: #F96F6F;
 
   /* Terminal */
   --terminal-bg: #11111b;
