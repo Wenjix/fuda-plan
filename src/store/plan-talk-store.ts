@@ -44,7 +44,7 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
   setTurnState: (turnState) => set({ turnState }),
-  addTurn: (turn) => set((s) => ({ turns: [...s.turns, turn] })),
+  addTurn: (turn) => set((s) => ({ turns: [...s.turns, { ...turn, turnIndex: s.turns.length }] })),
   setPendingEdits: (edits) => set({ pendingEdits: edits }),
   setGapCards: (cards) => set({ gapCards: cards }),
   setUnderstanding: (text) => set({ currentUnderstanding: text }),

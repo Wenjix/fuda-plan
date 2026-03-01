@@ -54,6 +54,7 @@ export function VoicePane() {
     audioPlayback.onEnd(() => {
       setPlayingTurnId(null);
     });
+    return () => audioPlayback.onEnd(() => {});
   }, []);
 
   const handleReplay = useCallback(
@@ -112,6 +113,8 @@ export function VoicePane() {
       recorderRef.current = null;
       await transcribeAndAnalyze(blob, elevenLabsKey);
     } catch {
+      recorderRef.current?.destroy();
+      recorderRef.current = null;
       usePlanTalkStore.getState().setError('Recording failed. Please try again.');
       usePlanTalkStore.getState().setTurnState('error');
     }
@@ -123,7 +126,8 @@ export function VoicePane() {
     }
   }, [voiceInputMode, isRecording, startRecording]);
 
-  const handleMicPointerUp = useCallback(() => {
+  const handleMicPointerUp = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
     if (voiceInputMode === 'hold_to_talk' && isRecording) {
       stopRecording();
     }

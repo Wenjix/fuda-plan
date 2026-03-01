@@ -17,8 +17,8 @@ import { telemetry } from '../services/telemetry/collector';
 export async function analyzeReflection(transcriptText: string, source: 'voice' | 'typed' = 'typed'): Promise<void> {
   const store = usePlanTalkStore.getState();
 
-  // Guard against concurrent calls
-  if (store.turnState === 'analyzing') return;
+  // Guard against concurrent calls (covers all busy states)
+  if (store.turnState === 'analyzing' || store.turnState === 'transcribing' || store.turnState === 'recording') return;
 
   const session = useSessionStore.getState().session;
   const unifiedPlan = useSemanticStore.getState().unifiedPlan;
@@ -133,8 +133,9 @@ export function applyEdit(editId: string): void {
   semanticStore.setUnifiedPlan(updated);
 
   // Remove applied edit from pending to prevent double-apply
-  usePlanTalkStore.getState().setPendingEdits(
-    usePlanTalkStore.getState().pendingEdits.filter((e) => e.id !== editId),
+  const freshStore = usePlanTalkStore.getState();
+  freshStore.setPendingEdits(
+    freshStore.pendingEdits.filter((e) => e.id !== editId),
   );
 }
 
@@ -195,6 +196,8 @@ async function generateTts(
   usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'loading');
   try {
     const blob = await textToSpeech(text, apiKey, voiceId || undefined);
+    // Guard: if the store was cleared (modal closed) while awaiting, bail out
+    if (!usePlanTalkStore.getState().turns.find((t) => t.id === turnId)) return;
     usePlanTalkStore.getState().setTtsBlob(turnId, blob);
     usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'ready');
     telemetry.track('tts_playback_started', { turnId });
@@ -202,6 +205,8 @@ async function generateTts(
       await audioPlayback.play(blob);
     }
   } catch {
+    // Guard: if the store was cleared while awaiting, don't write stale status
+    if (!usePlanTalkStore.getState().turns.find((t) => t.id === turnId)) return;
     usePlanTalkStore.getState().setTtsTurnStatus(turnId, 'failed');
     telemetry.track('tts_playback_failed', { turnId });
   }

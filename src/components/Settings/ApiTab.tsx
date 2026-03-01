@@ -86,7 +86,7 @@ export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate
         <div className={`${styles.statusIndicator} ${statusClass(elevenLabsStatus)}`} data-testid="elevenlabs-key-status">
           {STATUS_LABELS[elevenLabsStatus]}
         </div>
-        <p className={styles.statusIndicator} style={{ color: 'var(--text-muted, #999)' }}>
+        <p style={{ color: 'var(--text-muted, #999)', fontSize: '0.85rem', margin: '0.25rem 0 0' }}>
           Voice transcription audio is sent to ElevenLabs when enabled.
         </p>
       </fieldset>
@@ -112,6 +112,17 @@ export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate
           />
           Auto-play AI responses
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+          Voice input mode:
+          <select
+            value={settings.voiceInputMode}
+            onChange={(e) => onUpdate({ voiceInputMode: e.target.value as 'hold_to_talk' | 'toggle' })}
+            aria-label="Voice input mode"
+          >
+            <option value="hold_to_talk">Hold to talk</option>
+            <option value="toggle">Toggle</option>
+          </select>
+        </label>
         <input
           className={styles.textInput}
           type="text"
@@ -122,7 +133,7 @@ export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate
           aria-label="TTS Voice ID"
           style={{ marginBottom: '0.5rem' }}
         />
-        <p className={styles.statusIndicator} style={{ color: 'var(--text-muted, #999)' }}>
+        <p style={{ color: 'var(--text-muted, #999)', fontSize: '0.85rem', margin: '0.25rem 0 0' }}>
           AI responses are synthesized via ElevenLabs when TTS is enabled.
         </p>
       </fieldset>

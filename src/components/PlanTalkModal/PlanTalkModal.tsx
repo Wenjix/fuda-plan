@@ -3,6 +3,7 @@ import { usePlanTalkStore } from '../../store/plan-talk-store';
 import { useSemanticStore } from '../../store/semantic-store';
 import { applyAllAccepted } from '../../store/plan-talk-actions';
 import { telemetry } from '../../services/telemetry/collector';
+import { audioPlayback } from '../../services/voice/audio-playback';
 import { VoicePane } from './VoicePane';
 import { AnalysisPane } from './AnalysisPane';
 import styles from './PlanTalkModal.module.css';
@@ -33,15 +34,15 @@ export function PlanTalkModal() {
   })();
 
   const handleClose = useCallback(() => {
+    audioPlayback.stop();
     telemetry.track('modal_closed');
     close();
     clear();
   }, [close, clear]);
 
   const handleApply = useCallback(() => {
-    telemetry.track('edits_applied', { count: acceptedCount });
     applyAllAccepted();
-  }, [acceptedCount]);
+  }, []);
 
   const handleDiscard = useCallback(() => {
     setPendingEdits([]);
@@ -70,7 +71,7 @@ export function PlanTalkModal() {
       // Focus trap
       if (e.key === 'Tab') {
         const focusable = modal.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [contenteditable], [tabindex]:not([tabindex="-1"])'
         );
         if (focusable.length === 0) return;
 

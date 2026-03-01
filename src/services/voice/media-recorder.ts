@@ -72,6 +72,7 @@ export class VoiceRecorder {
   /** Release the mic stream. Call this when done. */
   destroy(): void {
     if (this.recorder?.state === 'recording') {
+      this.recorder.onstop = null;
       this.recorder.stop();
     }
     this.stream?.getTracks().forEach((t) => t.stop());

@@ -33,6 +33,7 @@ export class AudioPlayback {
   stop(): void {
     if (this.audio) {
       this.audio.pause();
+      this.audio.src = '';
     }
     this.cleanup();
   }

@@ -63,8 +63,8 @@ export function AnalysisPane() {
         <>
           <h4 className={styles.analysisSectionTitle}>Open Questions</h4>
           <ul className={styles.questionsList}>
-            {unresolvedQuestions.map((q, i) => (
-              <li key={i} className={styles.questionItem}>{q}</li>
+            {unresolvedQuestions.map((q) => (
+              <li key={q.slice(0, 60)} className={styles.questionItem}>{q}</li>
             ))}
           </ul>
         </>
