@@ -93,6 +93,31 @@
   border-color: var(--card-border-hover);
 }
 
+.terminalToggle {
+  background: none;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 12px;
+  line-height: 1;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.terminalToggle:hover {
+  color: var(--text-primary);
+  border-color: var(--card-border-hover);
+}
+
+.terminalToggleActive {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  background: var(--btn-accent-bg-hover);
+}
+
 .planToggle {
   background: none;
   border: 1px solid var(--toolbar-border);

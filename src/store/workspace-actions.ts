@@ -48,6 +48,9 @@ export async function switchSession(sessionId: string): Promise<void> {
   if (!ok) {
     throw new Error(`Failed to restore session: ${sessionId}`);
   }
+
+  // Terminal sessions are ephemeral — always start closed on session restore
+  useViewStore.getState().setTerminalOpen(false);
 }
 
 /**

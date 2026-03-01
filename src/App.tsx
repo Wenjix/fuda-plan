@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from 'react';
 import { useSessionStore } from './store/session-store';
 import { useSemanticStore } from './store/semantic-store';
+import { useViewStore } from './store/view-store';
 import { switchSession, deleteSession, listSessions } from './store/workspace-actions';
 import { generateLanePlan } from './store/plan-actions';
 import { triggerSynthesis } from './store/synthesis-actions';
+import { toggleTerminal } from './store/terminal-actions';
 import { usePlanTalkStore } from './store/plan-talk-store';
 import { TopicInput } from './components/TopicInput/TopicInput';
 import { FudaCanvas } from './components/Canvas/FudaCanvas';
@@ -11,6 +13,7 @@ import { PlanPanel } from './components/PlanPanel/PlanPanel';
 import { SessionList } from './components/SessionList/SessionList';
 import { Toolbar } from './components/Toolbar/Toolbar';
 import { PlanTalkModal } from './components/PlanTalkModal/PlanTalkModal';
+import { TerminalDrawer } from './components/TerminalDrawer/TerminalDrawer';
 import { useTheme } from './components/Settings/ThemeProvider';
 import './App.css';
 
@@ -19,6 +22,7 @@ function App() {
   const uiMode = useSessionStore(s => s.uiMode);
   const session = useSessionStore(s => s.session);
   const planPanelOpen = useSessionStore(s => s.planPanelOpen);
+  const terminalOpen = useViewStore(s => s.terminalOpen);
 
   // On initial mount with no session, check IDB for saved sessions
   useEffect(() => {
@@ -79,6 +83,18 @@ function App() {
     usePlanTalkStore.getState().open();
   }, []);
 
+  // Keyboard shortcut: Ctrl+` toggles terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault();
+        toggleTerminal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const showToolbar = session || uiMode === 'workspace';
 
   return (
@@ -95,7 +111,10 @@ function App() {
         )}
         {(uiMode === 'compass' || uiMode === 'exploring') && (
           <div className="exploring-layout">
-            <FudaCanvas />
+            <div className="exploring-content">
+              <FudaCanvas />
+              {terminalOpen && <TerminalDrawer />}
+            </div>
             {planPanelOpen && (
               <div className="plan-panel-container">
                 <PlanPanel

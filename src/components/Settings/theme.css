@@ -165,6 +165,14 @@
   --confirm-no-border: #d0d0d8;
   --confirm-no-text: #888899;
   --confirm-no-hover-bg: #f0f0f5;
+
+  /* Terminal (dark bg in both themes — standard practice) */
+  --terminal-bg: #1e1e2e;
+  --terminal-header-bg: #181825;
+  --terminal-border: #2a2a3a;
+  --terminal-text: #cdd6f4;
+  --terminal-cursor: #f5e0dc;
+  --terminal-selection-bg: rgba(99, 102, 241, 0.3);
 }
 
 [data-theme="dark"] {
@@ -334,4 +342,12 @@
   --confirm-no-border: #3a3a5a;
   --confirm-no-text: #8888aa;
   --confirm-no-hover-bg: #1a1a2e;
+
+  /* Terminal */
+  --terminal-bg: #11111b;
+  --terminal-header-bg: #0d0d14;
+  --terminal-border: #1e1e30;
+  --terminal-text: #cdd6f4;
+  --terminal-cursor: #f5e0dc;
+  --terminal-selection-bg: rgba(129, 140, 248, 0.3);
 }

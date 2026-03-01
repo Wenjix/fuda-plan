@@ -43,6 +43,8 @@ interface ViewState {
   activeNodeId: string | null;
   streamBuffers: Map<string, string>;
   dialoguePanelNodeId: string | null;
+  terminalOpen: boolean;
+  terminalHeightPx: number;
 
   setActiveNode: (id: string | null) => void;
   setViewNode: (id: string, state: ViewNodeState) => void;
@@ -53,14 +55,22 @@ interface ViewState {
   openDialoguePanel: (nodeId: string) => void;
   closeDialoguePanel: () => void;
   relayoutTree: (nodes: SemanticNode[], edges: SemanticEdge[]) => void;
+  setTerminalOpen: (open: boolean) => void;
+  toggleTerminal: () => void;
+  setTerminalHeight: (px: number) => void;
   clear: () => void;
 }
+
+const TERMINAL_MIN_HEIGHT = 200;
+const TERMINAL_MAX_HEIGHT = 520;
 
 export const useViewStore = create<ViewState>()((set) => ({
   viewNodes: new Map(),
   activeNodeId: null,
   streamBuffers: new Map(),
   dialoguePanelNodeId: null,
+  terminalOpen: false,
+  terminalHeightPx: 280,
 
   setActiveNode: (id) => set({ activeNodeId: id }),
   setViewNode: (id, state) => set((s) => {
@@ -106,5 +116,17 @@ export const useViewStore = create<ViewState>()((set) => ({
     }
     return { viewNodes: next };
   }),
-  clear: () => set({ viewNodes: new Map(), activeNodeId: null, streamBuffers: new Map(), dialoguePanelNodeId: null }),
+  setTerminalOpen: (open) => set({ terminalOpen: open }),
+  toggleTerminal: () => set((s) => ({ terminalOpen: !s.terminalOpen })),
+  setTerminalHeight: (px) =>
+    set({ terminalHeightPx: Math.max(TERMINAL_MIN_HEIGHT, Math.min(TERMINAL_MAX_HEIGHT, px)) }),
+  clear: () =>
+    set({
+      viewNodes: new Map(),
+      activeNodeId: null,
+      streamBuffers: new Map(),
+      dialoguePanelNodeId: null,
+      terminalOpen: false,
+      // Preserve terminalHeightPx — user preference survives session clear
+    }),
 }));
