@@ -5,11 +5,15 @@ import { z } from 'zod';
 const SETTINGS_DB_NAME = 'fuda-settings';
 const SETTINGS_DB_VERSION = 1;
 
+export const ThemeSchema = z.enum(['light', 'dark']).default('light');
+export type Theme = z.infer<typeof ThemeSchema>;
+
 export const AppSettingsSchema = z.object({
   geminiApiKey: z.string().default(''),
   challengeDepth: z.enum(['gentle', 'balanced', 'intense']).default('balanced'),
   autoSaveEnabled: z.boolean().default(true),
   animationsEnabled: z.boolean().default(true),
+  theme: ThemeSchema,
 });
 
 export type AppSettings = z.infer<typeof AppSettingsSchema>;

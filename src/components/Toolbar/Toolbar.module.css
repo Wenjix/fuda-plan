@@ -15,6 +15,24 @@
   gap: 12px;
 }
 
+.brand {
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #7b4fbf;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.brand:hover {
+  background: #1a1a2e;
+  color: #9b6fd0;
+}
+
 .topic {
   font-size: 0.85rem;
   font-weight: 600;
@@ -56,4 +74,21 @@
 .nodeCount {
   font-size: 0.75rem;
   color: #8888aa;
+}
+
+.settingsButton {
+  background: none;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  color: #8888aa;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settingsButton:hover {
+  color: #e0e0e0;
+  border-color: #5a5a7a;
 }

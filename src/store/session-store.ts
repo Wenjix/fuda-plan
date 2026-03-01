@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { PlanningSession, ChallengeDepth } from '../core/types';
 
-type UIMode = 'topic_input' | 'compass' | 'exploring';
+type UIMode = 'topic_input' | 'compass' | 'exploring' | 'workspace';
 
 interface SessionState {
   session: PlanningSession | null;

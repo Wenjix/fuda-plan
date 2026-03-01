@@ -1,0 +1,39 @@
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #eaeaea;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  --border-color: #e0e0e0;
+  --accent-color: #6366f1;
+  --accent-hover: #4f46e5;
+  --success-color: #22c55e;
+  --error-color: #ef4444;
+  --warning-color: #f59e0b;
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --button-bg: #6366f1;
+  --button-text: #ffffff;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #6a6a8a;
+  --border-color: #2a2a4a;
+  --accent-color: #818cf8;
+  --accent-hover: #6366f1;
+  --success-color: #34d399;
+  --error-color: #f87171;
+  --warning-color: #fbbf24;
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --input-bg: #12122a;
+  --input-border: #3a3a5a;
+  --button-bg: #818cf8;
+  --button-text: #ffffff;
+}
