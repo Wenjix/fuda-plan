@@ -4,7 +4,7 @@
   height: 100%;
   padding: 32px;
   overflow-y: auto;
-  background: #0a0a0f;
+  background: var(--canvas-bg);
 }
 
 .header {
@@ -17,7 +17,7 @@
 .title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -25,8 +25,8 @@
   padding: 8px 20px;
   border-radius: 8px;
   border: none;
-  background: #7b4fbf;
-  color: #fff;
+  background: var(--button-bg);
+  color: var(--button-text);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -34,7 +34,7 @@
 }
 
 .newSessionBtn:hover {
-  background: #9064d0;
+  background: var(--accent-hover);
 }
 
 .grid {
@@ -46,8 +46,8 @@
 /* Session card */
 
 .card {
-  background: #12121a;
-  border: 1px solid #2a2a3a;
+  background: var(--session-card-bg);
+  border: 1px solid var(--session-card-border);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -57,7 +57,7 @@
 }
 
 .card:hover {
-  border-color: #4a4a6a;
+  border-color: var(--session-card-border-hover);
 }
 
 .cardHeader {
@@ -70,7 +70,7 @@
 .cardTopic {
   font-size: 1rem;
   font-weight: 600;
-  color: #e0e0e0;
+  color: var(--text-primary);
   margin: 0;
   line-height: 1.4;
   flex: 1;
@@ -92,23 +92,23 @@
 }
 
 .statusExploring {
-  background: #1a2a3a;
-  color: #4a90d9;
+  background: var(--status-exploring-bg);
+  color: var(--status-exploring-text);
 }
 
 .statusLanePlanning {
-  background: #2a2a1a;
-  color: #d9a84f;
+  background: var(--status-lane-planning-bg);
+  color: var(--status-lane-planning-text);
 }
 
 .statusSynthesisReady {
-  background: #1a3a2a;
-  color: #3daa6d;
+  background: var(--status-synthesis-ready-bg);
+  color: var(--status-synthesis-ready-text);
 }
 
 .statusSynthesized {
-  background: #2a1a3a;
-  color: #9b6fd0;
+  background: var(--status-synthesized-bg);
+  color: var(--status-synthesized-text);
 }
 
 .cardMeta {
@@ -116,7 +116,7 @@
   align-items: center;
   gap: 16px;
   font-size: 0.75rem;
-  color: #6a6a8a;
+  color: var(--session-meta-text);
 }
 
 .metaItem {
@@ -130,14 +130,14 @@
 .progressBar {
   height: 4px;
   border-radius: 2px;
-  background: #1a1a2e;
+  background: var(--progress-bg);
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
   border-radius: 2px;
-  background: #7b4fbf;
+  background: var(--progress-fill);
   transition: width 0.3s ease;
 }
 
@@ -154,9 +154,9 @@
   flex: 1;
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #3a3a5a;
+  border: 1px solid var(--btn-secondary-border);
   background: transparent;
-  color: #c0c0d0;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
@@ -164,16 +164,16 @@
 }
 
 .openBtn:hover {
-  background: #1a1a2e;
-  border-color: #5a5a8a;
+  background: var(--btn-secondary-bg);
+  border-color: var(--card-border-hover);
 }
 
 .deleteBtn {
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid #3a1a1a;
+  border: 1px solid var(--btn-danger-border);
   background: transparent;
-  color: #d94f4f;
+  color: var(--btn-danger-text);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
@@ -181,7 +181,7 @@
 }
 
 .deleteBtn:hover {
-  background: #2a1010;
+  background: var(--btn-danger-bg-hover);
 }
 
 /* Confirmation */
@@ -191,7 +191,7 @@
   align-items: center;
   gap: 8px;
   font-size: 0.8rem;
-  color: #d94f4f;
+  color: var(--btn-danger-text);
 }
 
 .confirmText {
@@ -201,9 +201,9 @@
 .confirmYes {
   padding: 4px 12px;
   border-radius: 6px;
-  border: 1px solid #d94f4f;
-  background: #3a1010;
-  color: #d94f4f;
+  border: 1px solid var(--confirm-yes-border);
+  background: var(--confirm-yes-bg);
+  color: var(--confirm-yes-text);
   font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -211,15 +211,15 @@
 }
 
 .confirmYes:hover {
-  background: #5a1010;
+  background: var(--confirm-yes-hover-bg);
 }
 
 .confirmNo {
   padding: 4px 12px;
   border-radius: 6px;
-  border: 1px solid #3a3a5a;
+  border: 1px solid var(--confirm-no-border);
   background: transparent;
-  color: #8888aa;
+  color: var(--confirm-no-text);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -227,7 +227,7 @@
 }
 
 .confirmNo:hover {
-  background: #1a1a2e;
+  background: var(--confirm-no-hover-bg);
 }
 
 /* Empty state */
@@ -244,13 +244,13 @@
 .emptyTitle {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #8888aa;
+  color: var(--text-muted);
   margin: 0 0 8px;
 }
 
 .emptySubtitle {
   font-size: 0.9rem;
-  color: #5a5a7a;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -261,6 +261,6 @@
   align-items: center;
   justify-content: center;
   padding: 64px 32px;
-  color: #6a6a8a;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }

@@ -14,13 +14,13 @@
 .title {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .subtitle {
   font-size: 0.95rem;
-  color: #8888aa;
+  color: var(--text-muted);
   margin-bottom: 24px;
   line-height: 1.5;
 }
@@ -33,9 +33,9 @@
 .input {
   padding: 14px 16px;
   border-radius: 12px;
-  border: 1px solid #3a3a5a;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   font-size: 1rem;
   line-height: 1.5;
   resize: none;
@@ -44,11 +44,11 @@
 
 .input:focus {
   outline: none;
-  border-color: #7b4fbf;
+  border-color: var(--accent-color);
 }
 
 .input::placeholder {
-  color: #5a5a7a;
+  color: var(--text-muted);
 }
 
 .footer {
@@ -60,12 +60,12 @@
 
 .charCount {
   font-size: 0.8rem;
-  color: #5a5a7a;
+  color: var(--text-muted);
 }
 
 .error {
   font-size: 0.8rem;
-  color: #d94f4f;
+  color: var(--error-color);
 }
 
 .startBtn {
@@ -73,8 +73,8 @@
   padding: 10px 24px;
   border-radius: 10px;
   border: none;
-  background: #7b4fbf;
-  color: white;
+  background: var(--button-bg);
+  color: var(--button-text);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -82,7 +82,7 @@
 }
 
 .startBtn:hover:not(:disabled) {
-  background: #9a6fdf;
+  background: var(--accent-hover);
 }
 
 .startBtn:disabled {

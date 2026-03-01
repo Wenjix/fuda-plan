@@ -1,5 +1,5 @@
-import { ReactFlow, Background, Controls } from '@xyflow/react';
-import type { NodeTypes, EdgeTypes, OnNodesChange, OnEdgesChange, ReactFlowInstance, NodeMouseHandler } from '@xyflow/react';
+import { ReactFlow, Background, Controls, applyNodeChanges } from '@xyflow/react';
+import type { Node, NodeTypes, EdgeTypes, OnNodesChange, OnEdgesChange, ReactFlowInstance, NodeMouseHandler } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSemanticStore } from '../../store/semantic-store';
 import { useSessionStore } from '../../store/session-store';
@@ -10,7 +10,7 @@ import { ExplorationCard } from '../ExplorationCard/ExplorationCard';
 import { PlanCard } from '../PlanCard/PlanCard';
 import { Connector } from '../shared/Connector';
 import { RadialMenu } from '../RadialMenu/RadialMenu';
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 
 export function FudaCanvas() {
   const semanticNodes = useSemanticStore(s => s.nodes);
@@ -35,8 +35,17 @@ export function FudaCanvas() {
     [semanticNodes, semanticEdges, viewStates, activeLaneId]
   );
 
-  // Persist drag positions to our store
+  // Track internal ReactFlow state for dimensions/selection while persisting positions to our store
+  const [rfNodes, setRfNodes] = useState<Node[]>([]);
+
+  // Sync projected nodes into local state for ReactFlow
+  useEffect(() => {
+    setRfNodes(nodes);
+  }, [nodes]);
+
+  // Apply all ReactFlow changes (dimensions, select, etc.) and persist positions to our store
   const onNodesChange = useCallback<OnNodesChange>((changes) => {
+    setRfNodes(prev => applyNodeChanges(changes, prev));
     for (const change of changes) {
       if (change.type === 'position' && change.position) {
         useViewStore.getState().updatePosition(change.id, change.position);
@@ -69,13 +78,17 @@ export function FudaCanvas() {
   }, []);
 
   // Re-layout when lane changes and all nodes are at (0,0)
+  const prevLaneRef = useRef(activeLaneId);
   useEffect(() => {
     if (!activeLaneId) return;
+    if (prevLaneRef.current === activeLaneId) return;
+    prevLaneRef.current = activeLaneId;
 
     // Check if all visible nodes are still at default position
+    const currentViewStates = useViewStore.getState().viewNodes;
     const laneNodes = semanticNodes.filter(n => n.laneId === activeLaneId);
     const allAtOrigin = laneNodes.length > 1 && laneNodes.every(n => {
-      const view = viewStates.get(n.id);
+      const view = currentViewStates.get(n.id);
       return view && view.position.x === 0 && view.position.y === 0;
     });
 
@@ -86,16 +99,16 @@ export function FudaCanvas() {
       useViewStore.getState().relayoutTree(laneNodes, laneEdges);
     }
 
-    // Fit view after layout
+    // Fit view after lane switch
     if (rfInstanceRef.current) {
       setTimeout(() => rfInstanceRef.current?.fitView({ padding: 0.2 }), 100);
     }
-  }, [activeLaneId, semanticNodes, semanticEdges, viewStates]);
+  }, [activeLaneId, semanticNodes, semanticEdges]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlow
-        nodes={nodes}
+        nodes={rfNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

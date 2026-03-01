@@ -155,9 +155,9 @@ export async function triggerSynthesis(): Promise<UnifiedPlan> {
     throw new Error(formatResult.error ?? 'Format phase failed validation');
   }
 
-  // The format prompt asks for { sections, conflictsResolved, unresolvedQuestions }
-  // but the unified_plan schema gate validates against StructuredPlan (the sections shape).
-  // The LLM may return sections directly or wrapped — handle both.
+  // The format prompt asks for StructuredPlan sections directly, and the
+  // unified_plan schema gate validates against StructuredPlanSchema — this is
+  // intentional: the LLM returns sections in the StructuredPlan shape.
   let sections: StructuredPlan;
   const formatData = formatResult.data as StructuredPlan;
   sections = formatData;

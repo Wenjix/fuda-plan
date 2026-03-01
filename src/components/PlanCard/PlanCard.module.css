@@ -1,9 +1,9 @@
 .card {
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 20px;
-  color: #e0e0e0;
+  color: var(--card-text);
   font-family: system-ui, -apple-system, sans-serif;
 }
 
@@ -13,7 +13,7 @@
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--card-border);
 }
 
 .title {
@@ -24,8 +24,8 @@
 
 .confidence {
   font-size: 0.75rem;
-  color: #7b7b9a;
-  background: #2a2a4a;
+  color: var(--text-muted);
+  background: var(--btn-secondary-bg);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -37,7 +37,7 @@
 .sectionTitle {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #c0a0ff;
+  color: var(--plan-section-accent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 8px 0;
@@ -46,21 +46,21 @@
 .item {
   margin-bottom: 12px;
   padding-left: 12px;
-  border-left: 2px solid #3a3a5a;
+  border-left: 2px solid var(--plan-item-border);
 }
 
 .heading {
   font-size: 0.9rem;
   font-weight: 500;
   margin: 0 0 4px 0;
-  color: #e0e0e0;
+  color: var(--text-primary);
 }
 
 .content {
   font-size: 0.8rem;
   line-height: 1.5;
   padding-left: 16px;
-  color: #b0b0c0;
+  color: var(--card-bullet-text);
   margin: 0 0 6px 0;
 }
 
@@ -78,9 +78,9 @@
   display: inline-block;
   padding: 2px 8px;
   border-radius: 6px;
-  border: 1px solid #3a3a5a;
+  border: 1px solid var(--evidence-item-border);
   background: transparent;
-  color: #8888aa;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.7rem;
   text-align: left;
@@ -88,7 +88,7 @@
 }
 
 .evidenceRef:hover {
-  background: #2a2a4a;
-  border-color: #c0a0ff;
-  color: #c0a0ff;
+  background: var(--evidence-item-hover-bg);
+  border-color: var(--btn-accent-text);
+  color: var(--btn-accent-text);
 }

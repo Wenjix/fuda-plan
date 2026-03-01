@@ -1,10 +1,10 @@
 .panel {
-  background: #12122a;
-  border-left: 1px solid #2a2a4a;
+  background: var(--plan-bg);
+  border-left: 1px solid var(--plan-border);
   padding: 16px;
   height: 100%;
   overflow-y: auto;
-  color: #e0e0e0;
+  color: var(--text-primary);
   font-family: system-ui, -apple-system, sans-serif;
 }
 
@@ -13,12 +13,12 @@
   gap: 12px;
   margin-bottom: 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #2a2a4a;
+  border-bottom: 1px solid var(--plan-border);
 }
 
 .tabLabel {
   font-size: 0.8rem;
-  color: #7b7b9a;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -33,22 +33,22 @@
 
 .emptyText {
   font-size: 0.9rem;
-  color: #7b7b9a;
+  color: var(--text-muted);
   margin: 0 0 8px 0;
 }
 
 .promotionCount {
   font-size: 0.8rem;
-  color: #5a5a7a;
+  color: var(--text-muted);
   margin: 0 0 16px 0;
 }
 
 .generateBtn {
   padding: 10px 24px;
   border-radius: 8px;
-  border: 1px solid #7b4fbf;
-  background: #2a1a4a;
-  color: #c0a0ff;
+  border: 1px solid var(--plan-accent);
+  background: var(--plan-generate-bg);
+  color: var(--plan-accent-text);
   cursor: pointer;
   font-size: 0.85rem;
   font-weight: 500;
@@ -56,8 +56,8 @@
 }
 
 .generateBtn:hover:not(:disabled) {
-  background: #3a2a5a;
-  border-color: #9a6fdf;
+  background: var(--btn-accent-bg-hover);
+  border-color: var(--accent-hover);
 }
 
 .generateBtn:disabled {
@@ -68,13 +68,13 @@
 .planList {
   margin-top: 20px;
   padding-top: 12px;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--plan-border);
 }
 
 .planListTitle {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #7b7b9a;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 8px 0;
@@ -88,12 +88,12 @@
   border-radius: 6px;
   margin-bottom: 4px;
   font-size: 0.8rem;
-  color: #b0b0c0;
+  color: var(--card-bullet-text);
 }
 
 .planListItem.active {
-  background: #2a2a4a;
-  color: #e0e0e0;
+  background: var(--btn-secondary-bg);
+  color: var(--text-primary);
 }
 
 .planListName {
@@ -102,11 +102,11 @@
 
 .planListConfidence {
   font-size: 0.7rem;
-  color: #7b7b9a;
+  color: var(--text-muted);
 }
 
 .divider {
   height: 1px;
-  background: #2a2a4a;
+  background: var(--plan-border);
   margin: 16px 0;
 }

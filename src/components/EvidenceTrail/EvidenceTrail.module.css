@@ -13,9 +13,9 @@
   max-width: 260px;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #3a3a5a;
+  border: 1px solid var(--evidence-item-border);
   background: transparent;
-  color: #b0b0c0;
+  color: var(--evidence-item-text);
   cursor: pointer;
   font-size: 0.72rem;
   text-align: left;
@@ -24,15 +24,15 @@
 }
 
 .item:hover {
-  background: #2a2a4a;
-  border-color: #c0a0ff;
-  color: #c0a0ff;
+  background: var(--evidence-item-hover-bg);
+  border-color: var(--btn-accent-text);
+  color: var(--btn-accent-text);
 }
 
 .itemPrimary {
   font-weight: 600;
-  color: #d0c0e8;
-  border-color: #4a3a6a;
+  color: var(--evidence-item-primary-text);
+  border-color: var(--evidence-item-primary-border);
 }
 
 .itemSupporting {
@@ -57,17 +57,17 @@
 }
 
 .badgePrimary {
-  background: #2a1a4a;
-  color: #c0a0ff;
+  background: var(--evidence-badge-primary-bg);
+  color: var(--evidence-badge-primary-text);
 }
 
 .badgeSupporting {
-  background: #1a2a3a;
-  color: #7b9ab8;
+  background: var(--evidence-badge-supporting-bg);
+  color: var(--evidence-badge-supporting-text);
 }
 
 .separator {
-  color: #4a4a6a;
+  color: var(--evidence-separator);
   font-size: 0.65rem;
   user-select: none;
   flex-shrink: 0;

@@ -4,8 +4,8 @@
   justify-content: space-between;
   height: 48px;
   padding: 0 16px;
-  background: #12121a;
-  border-bottom: 1px solid #2a2a3a;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-border);
   flex-shrink: 0;
 }
 
@@ -20,7 +20,7 @@
   border: none;
   font-size: 0.9rem;
   font-weight: 800;
-  color: #7b4fbf;
+  color: var(--toolbar-brand);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 6px;
@@ -29,14 +29,14 @@
 }
 
 .brand:hover {
-  background: #1a1a2e;
-  color: #9b6fd0;
+  background: var(--toolbar-brand-hover-bg);
+  color: var(--accent-hover);
 }
 
 .topic {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #e0e0e0;
+  color: var(--text-primary);
   max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -47,22 +47,22 @@
   font-size: 0.7rem;
   padding: 2px 8px;
   border-radius: 10px;
-  background: #1a3a2a;
-  color: #3daa6d;
+  background: var(--status-bg);
+  color: var(--status-text);
   text-transform: uppercase;
   font-weight: 600;
 }
 
 .center {
   font-size: 0.75rem;
-  color: #5a5a7a;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
 .mode {
   padding: 2px 8px;
   border-radius: 8px;
-  background: #1a1a2e;
+  background: var(--bg-secondary);
 }
 
 .right {
@@ -73,15 +73,15 @@
 
 .nodeCount {
   font-size: 0.75rem;
-  color: #8888aa;
+  color: var(--text-muted);
 }
 
 .settingsButton {
   background: none;
-  border: 1px solid #2a2a3a;
+  border: 1px solid var(--toolbar-border);
   border-radius: 6px;
   font-size: 1.1rem;
-  color: #8888aa;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 4px 8px;
   line-height: 1;
@@ -89,6 +89,30 @@
 }
 
 .settingsButton:hover {
-  color: #e0e0e0;
-  border-color: #5a5a7a;
+  color: var(--text-primary);
+  border-color: var(--card-border-hover);
+}
+
+.planToggle {
+  background: none;
+  border: 1px solid var(--toolbar-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 12px;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.planToggle:hover {
+  color: var(--text-primary);
+  border-color: var(--card-border-hover);
+}
+
+.planToggleActive {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+  background: var(--btn-accent-bg-hover);
 }

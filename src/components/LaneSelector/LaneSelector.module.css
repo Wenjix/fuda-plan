@@ -2,8 +2,8 @@
   display: flex;
   gap: 2px;
   padding: 4px 16px;
-  background: #0a0a14;
-  border-bottom: 1px solid #2a2a3a;
+  background: var(--lane-selector-bg);
+  border-bottom: 1px solid var(--lane-selector-border);
 }
 
 .tab {
@@ -14,7 +14,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: #8888aa;
+  color: var(--lane-tab-text);
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
@@ -22,11 +22,11 @@
 }
 
 .tab:hover {
-  color: #e0e0e0;
+  color: var(--lane-tab-active-text);
 }
 
 .active {
-  color: #e0e0e0;
+  color: var(--lane-tab-active-text);
   border-bottom-color: var(--lane-color);
 }
 

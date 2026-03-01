@@ -22,6 +22,7 @@ import { useSessionStore } from './session-store';
 import { useJobStore } from './job-store';
 import { useViewStore } from './view-store';
 import type { ViewNodeState } from './view-store';
+import { getNewChildPosition, NODE_WIDTH, HORIZONTAL_GAP } from '../utils/layout';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -173,7 +174,8 @@ export async function exploreAllLanes(
 
   const timestamp = now();
 
-  for (const lane of lanes) {
+  for (let laneIndex = 0; laneIndex < lanes.length; laneIndex++) {
+    const lane = lanes[laneIndex];
     const rootNode: SemanticNode = {
       id: generateId(),
       sessionId: session.id,
@@ -193,7 +195,7 @@ export async function exploreAllLanes(
 
     const viewNode: ViewNodeState = {
       semanticId: rootNode.id,
-      position: { x: 0, y: 0 },
+      position: { x: laneIndex * (NODE_WIDTH + HORIZONTAL_GAP * 2), y: 0 },
       isCollapsed: false,
       isAnswerVisible: false,
       isNew: true,
@@ -313,9 +315,16 @@ export async function branchFromNode(
   useSemanticStore.getState().addNode(childNode);
   useSemanticStore.getState().addEdge(edge);
 
+  // Compute child position based on parent and siblings
+  const parentView = useViewStore.getState().viewNodes.get(parentNode.id);
+  const parentPos = parentView?.position ?? { x: 0, y: 0 };
+  const existingSiblings = useSemanticStore.getState().edges
+    .filter((e) => e.sourceNodeId === parentNode.id);
+  const siblingCount = existingSiblings.length;
+
   const viewNode: ViewNodeState = {
     semanticId: childNode.id,
-    position: { x: 0, y: 0 },
+    position: getNewChildPosition(parentPos, siblingCount, siblingCount - 1),
     isCollapsed: false,
     isAnswerVisible: false,
     isNew: true,
@@ -404,9 +413,14 @@ function processBranchResult(
     // Track sibling questions for uniqueness gate on subsequent branches
     existingChildren.push(branch.question);
 
+    // Compute child position based on parent and total siblings in this batch
+    const parentView = useViewStore.getState().viewNodes.get(targetNode.id);
+    const parentPos = parentView?.position ?? { x: 0, y: 0 };
+    const totalSiblings = result.branches.length;
+
     const viewNode: ViewNodeState = {
       semanticId: childNode.id,
-      position: { x: 0, y: 0 },
+      position: getNewChildPosition(parentPos, totalSiblings, i),
       isCollapsed: false,
       isAnswerVisible: false,
       isNew: true,
@@ -431,6 +445,12 @@ function processPathQuestionsResult(
   const timestamp = now();
   const pathTypes: PathType[] = ['clarify', 'go-deeper', 'challenge', 'apply', 'connect', 'surprise'];
   let spawnIndex = 0;
+
+  // Count total valid paths for positioning
+  const validPaths = pathTypes.filter(pt => result.paths[pt]);
+  const totalChildren = validPaths.length;
+  const parentView = useViewStore.getState().viewNodes.get(targetNode.id);
+  const parentPos = parentView?.position ?? { x: 0, y: 0 };
 
   for (const pt of pathTypes) {
     const question = result.paths[pt];
@@ -465,7 +485,7 @@ function processPathQuestionsResult(
 
     const viewNode: ViewNodeState = {
       semanticId: childNode.id,
-      position: { x: 0, y: 0 },
+      position: getNewChildPosition(parentPos, totalChildren, spawnIndex),
       isCollapsed: false,
       isAnswerVisible: false,
       isNew: true,

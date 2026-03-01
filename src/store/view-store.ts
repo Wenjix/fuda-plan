@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { SemanticEdge } from '../core/types';
+import type { SemanticNode, SemanticEdge } from '../core/types';
+import { calculateTreeLayout } from '../utils/layout';
 
 export interface ViewNodeState {
   semanticId: string;
@@ -51,6 +52,7 @@ interface ViewState {
   clearStream: (nodeId: string) => void;
   openDialoguePanel: (nodeId: string) => void;
   closeDialoguePanel: () => void;
+  relayoutTree: (nodes: SemanticNode[], edges: SemanticEdge[]) => void;
   clear: () => void;
 }
 
@@ -93,5 +95,16 @@ export const useViewStore = create<ViewState>()((set) => ({
   }),
   openDialoguePanel: (nodeId) => set({ dialoguePanelNodeId: nodeId }),
   closeDialoguePanel: () => set({ dialoguePanelNodeId: null }),
+  relayoutTree: (nodes, edges) => set((s) => {
+    const positions = calculateTreeLayout(nodes, edges);
+    const next = new Map(s.viewNodes);
+    for (const [nodeId, pos] of positions) {
+      const current = next.get(nodeId);
+      if (current) {
+        next.set(nodeId, { ...current, position: pos });
+      }
+    }
+    return { viewNodes: next };
+  }),
   clear: () => set({ viewNodes: new Map(), activeNodeId: null, streamBuffers: new Map(), dialoguePanelNodeId: null }),
 }));

@@ -1,16 +1,16 @@
 .card {
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 16px;
   min-width: 280px;
   max-width: 360px;
-  color: #e0e0e0;
+  color: var(--card-text);
   font-family: system-ui, -apple-system, sans-serif;
 }
 
 .card:hover {
-  border-color: #4a4a7a;
+  border-color: var(--card-border-hover);
 }
 
 .header {
@@ -22,7 +22,7 @@
 
 .pathType {
   font-size: 0.7rem;
-  color: #7b7b9a;
+  color: var(--card-text-muted);
   text-transform: uppercase;
 }
 
@@ -36,7 +36,7 @@
 .answer {
   margin-bottom: 12px;
   padding-top: 8px;
-  border-top: 1px solid #2a2a4a;
+  border-top: 1px solid var(--card-border);
 }
 
 .summary {
@@ -49,7 +49,7 @@
   font-size: 0.8rem;
   line-height: 1.5;
   padding-left: 16px;
-  color: #b0b0c0;
+  color: var(--card-bullet-text);
 }
 
 .bullets li {
@@ -65,16 +65,16 @@
 .answerBtn, .retryBtn {
   padding: 6px 14px;
   border-radius: 8px;
-  border: 1px solid #4a4a7a;
-  background: #2a2a4a;
-  color: #e0e0e0;
+  border: 1px solid var(--btn-secondary-border);
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
   cursor: pointer;
   font-size: 0.8rem;
 }
 
-.answerBtn:hover { background: #3a3a5a; }
-.retryBtn { border-color: #d94f4f; color: #d94f4f; }
-.retryBtn:hover { background: #3a1a1a; }
+.answerBtn:hover { background: var(--btn-accent-bg-hover); }
+.retryBtn { border-color: var(--btn-danger-border); color: var(--btn-danger-text); }
+.retryBtn:hover { background: var(--btn-danger-bg-hover); }
 
 .branchActions {
   display: flex;
@@ -84,41 +84,41 @@
 .branchActions button {
   padding: 4px 10px;
   border-radius: 6px;
-  border: 1px solid #3a3a5a;
+  border: 1px solid var(--btn-secondary-border);
   background: transparent;
-  color: #8888aa;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.75rem;
 }
 
 .branchActions button:hover {
-  background: #2a2a4a;
-  color: #e0e0e0;
+  background: var(--btn-secondary-bg);
+  color: var(--text-primary);
 }
 
 .discussBtn {
   padding: 4px 12px;
   border-radius: 6px;
-  border: 1px solid #7b4fbf;
+  border: 1px solid var(--btn-accent-border);
   background: transparent;
-  color: #c0a0ff;
+  color: var(--btn-accent-text);
   cursor: pointer;
   font-size: 0.75rem;
   transition: all 0.15s;
 }
 
 .discussBtn:hover {
-  background: #1a1a3a;
-  border-color: #9a6fdf;
+  background: var(--btn-accent-bg-hover);
+  border-color: var(--accent-hover);
 }
 
 .collapseBtn {
   margin-left: auto;
   padding: 2px 8px;
   border-radius: 4px;
-  border: 1px solid #3a3a5a;
-  background: #2a2a4a;
-  color: #8888aa;
+  border: 1px solid var(--btn-secondary-border);
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 600;
@@ -126,12 +126,12 @@
 }
 
 .collapseBtn:hover {
-  background: #3a3a5a;
-  color: #e0e0e0;
+  background: var(--btn-accent-bg-hover);
+  color: var(--text-primary);
 }
 
 .handle {
   width: 8px;
   height: 8px;
-  background: #4a4a7a;
+  background: var(--handle-color);
 }

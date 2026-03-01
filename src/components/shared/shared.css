@@ -8,7 +8,7 @@
 
 .streaming-cursor {
   animation: blink 0.8s step-end infinite;
-  color: #7b4fbf;
+  color: var(--cursor-color);
   font-weight: bold;
 }
 
@@ -26,11 +26,11 @@
   text-transform: uppercase;
 }
 
-.status-badge--idle { background: #2a2a3a; color: #8888aa; }
-.status-badge--generating { background: #1a2a3a; color: #4a90d9; animation: pulse 1.5s ease-in-out infinite; }
-.status-badge--resolved { background: #1a3a2a; color: #3daa6d; }
-.status-badge--failed { background: #3a1a1a; color: #d94f4f; }
-.status-badge--stale { background: #3a3a1a; color: #d9a84f; }
+.status-badge--idle { background: var(--status-idle-bg); color: var(--status-idle-text); }
+.status-badge--generating { background: var(--status-generating-bg); color: var(--status-generating-text); animation: pulse 1.5s ease-in-out infinite; }
+.status-badge--resolved { background: var(--status-resolved-bg); color: var(--status-resolved-text); }
+.status-badge--failed { background: var(--status-failed-bg); color: var(--status-failed-text); }
+.status-badge--stale { background: var(--status-stale-bg); color: var(--status-stale-text); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }

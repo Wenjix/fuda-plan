@@ -66,6 +66,9 @@ export async function generateLanePlan(laneId: string, personaId: PersonaId): Pr
   });
   if (newStatus) {
     useSessionStore.getState().setSession({ ...session, status: newStatus });
+    if (newStatus === 'synthesis_ready') {
+      useSessionStore.getState().setPlanPanelOpen(true);
+    }
   }
 
   return plan;

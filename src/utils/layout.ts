@@ -1,9 +1,9 @@
 import type { SemanticNode, SemanticEdge } from '../core/types';
 
-const NODE_WIDTH = 320;
-const NODE_HEIGHT = 200;
-const HORIZONTAL_GAP = 40;
-const VERTICAL_GAP = 80;
+export const NODE_WIDTH = 320;
+export const NODE_HEIGHT = 200;
+export const HORIZONTAL_GAP = 40;
+export const VERTICAL_GAP = 80;
 
 export interface LayoutPosition {
   x: number;

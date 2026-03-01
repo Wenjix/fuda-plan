@@ -4,9 +4,9 @@
   gap: 6px;
   padding: 4px 10px;
   border-radius: 6px;
-  background: #3a3010;
-  border: 1px solid #6a5a20;
-  color: #e0c040;
+  background: var(--stale-bg);
+  border: 1px solid var(--stale-border);
+  color: var(--stale-text);
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -19,9 +19,9 @@
 .recalcBtn {
   padding: 2px 8px;
   border-radius: 4px;
-  border: 1px solid #6a5a20;
-  background: #4a4010;
-  color: #e0c040;
+  border: 1px solid var(--stale-btn-border);
+  background: var(--stale-btn-bg);
+  color: var(--stale-text);
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 500;
@@ -29,6 +29,6 @@
 }
 
 .recalcBtn:hover {
-  background: #5a5020;
-  border-color: #8a7a30;
+  background: var(--stale-btn-hover-bg);
+  border-color: var(--stale-border);
 }

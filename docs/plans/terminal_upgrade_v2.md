@@ -270,3 +270,189 @@ interface TerminalToolingState {
 1. v2: ship PTY terminal without hard dependency on Vibe.
 2. v2.1: ship Vibe probe + install/setup readiness UX + runtime config.
 3. v2.1.1: ship pinned container image, hardened CI coverage, and terminal compatibility QA matrix.
+
+---
+
+## Phase 1 Implementation Plan (Frontend-Only)
+
+### Context
+
+Fuda-plan is a **purely frontend app** — no backend, no server directory, no WebSocket infrastructure. This implementation plan covers the complete terminal UI/UX with a local echo backend, behind a service abstraction so a real PTY backend can be swapped in later without touching UI code.
+
+### Architecture Decision
+
+**Phased approach**: Ship the full terminal drawer UI with a `LocalEchoBackend` (built-in commands: `help`, `clear`, `echo`, `env`, `history`, `date`). The `ITerminalBackend` interface enables a future `WebSocketPtyBackend` swap by changing one factory function.
+
+### Step 1: Install dependencies
+
+```bash
+npm install xterm @xterm/addon-fit @xterm/addon-web-links
+```
+
+### Step 2: Service abstraction layer
+
+**New files:**
+
+| File | Purpose |
+|------|---------|
+| `src/services/terminal-backend.ts` | `ITerminalBackend` interface + `TerminalBackendEvents` types |
+| `src/services/local-echo-backend.ts` | `LocalEchoBackend` implementing the interface — handles line editing, command history, built-in commands |
+| `src/services/terminal-factory.ts` | `createTerminalBackend()` factory — returns `LocalEchoBackend` now, swappable later |
+
+Interface shape:
+
+```ts
+interface ITerminalBackend {
+  connect(opts: { cols: number; rows: number; cwd?: string; events: TerminalBackendEvents }): Promise<void>;
+  write(data: string): void;
+  resize(cols: number, rows: number): void;
+  disconnect(): void;
+  getState(): TerminalConnectionState;
+}
+```
+
+Built-in commands for local echo: `help`, `clear`, `echo`, `env` (shows FUDA session vars), `history`, `date`, `whoami`.
+
+### Step 3: State management
+
+**New file: `src/store/terminal-store.ts`** — Ephemeral Zustand store (follows `radial-menu-store.ts` pattern):
+- `connectionState: TerminalConnectionState`
+- `terminalSessionId: string | null`
+- `lastExit`, `errorMessage`
+- Actions: `setConnectionState`, `setLastExit`, `setErrorMessage`, `clear`
+
+**Modified: `src/store/view-store.ts`** — Add terminal geometry (persists via auto-save):
+- `terminalOpen: boolean` (default `false`)
+- `terminalHeightPx: number` (default `280`, clamped `200–520`)
+- Actions: `setTerminalOpen`, `toggleTerminal`, `setTerminalHeight`
+- Reset `terminalOpen` to `false` in `clear()`
+
+**New file: `src/store/terminal-actions.ts`** — Action module (follows `plan-actions.ts` pattern):
+- `openTerminal()` — sets `terminalOpen: true`, creates backend if needed
+- `closeTerminal()` — sets `terminalOpen: false` (does NOT kill process — spec requirement)
+- `endTerminalSession()` — disconnects backend + clears state
+- `toggleTerminal()` — convenience toggle
+- `getActiveBackend()` / `setActiveBackend()` — module-level backend ref
+
+### Step 4: Terminal drawer component
+
+**New files:**
+- `src/components/TerminalDrawer/TerminalDrawer.tsx`
+- `src/components/TerminalDrawer/TerminalDrawer.module.css`
+- `src/components/TerminalDrawer/xterm-theme.ts`
+
+Component responsibilities:
+- Mount xterm.js `Terminal` instance with `FitAddon` and `WebLinksAddon`
+- Wire `term.onData` → `backend.write`, `backend.onOutput` → `term.write`
+- `ResizeObserver` + `FitAddon.fit()` on container resize
+- Resize handle (top edge, drag to adjust height 200–520px)
+- Header bar: "Terminal" label, status dot, connection state text, "End Session" button
+- Theme reactivity: `MutationObserver` on `data-theme` attr updates xterm theme
+- Re-fit when `terminalHeightPx` changes
+
+### Step 5: Theme integration
+
+**Modified: `src/components/Settings/theme.css`** — Add terminal CSS custom properties:
+
+```css
+--terminal-bg: #1e1e2e;
+--terminal-border: #2a2a3a;
+--terminal-text: #cdd6f4;
+--terminal-cursor: #f5e0dc;
+--terminal-selection-bg: rgba(99, 102, 241, 0.3);
+```
+
+(Both light and dark themes get dark terminal backgrounds — standard practice.)
+
+**`xterm-theme.ts`** reads these CSS vars at runtime to build xterm's `ITheme` object with Catppuccin Mocha ANSI palette.
+
+### Step 6: Layout integration
+
+**Modified: `src/App.tsx`** — Wrap canvas + terminal in a column flex container:
+
+```tsx
+// Before:
+<div className="exploring-layout">
+  <FudaCanvas />
+  {planPanelOpen && <div className="plan-panel-container">...</div>}
+</div>
+
+// After:
+<div className="exploring-layout">
+  <div className="exploring-content">
+    <FudaCanvas />
+    {terminalOpen && <TerminalDrawer />}
+  </div>
+  {planPanelOpen && <div className="plan-panel-container">...</div>}
+</div>
+```
+
+Add `Ctrl+`` keyboard shortcut via `useEffect` + `window.addEventListener('keydown', ...)`.
+
+**Modified: `src/App.css`** — Add `.exploring-content`:
+
+```css
+.exploring-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+```
+
+Update `.exploring-layout > :first-child` to target `.exploring-content`.
+
+### Step 7: Toolbar integration
+
+**Modified: `src/components/Toolbar/Toolbar.tsx`** — Add Terminal toggle button in `.right` section, before the Plan toggle (line 50). Mirrors the existing `planToggle` pattern exactly.
+
+**Modified: `src/components/Toolbar/Toolbar.module.css`** — Add `.terminalToggle` / `.terminalToggleActive` styles (clone of `.planToggle` with monospace font-family).
+
+### Step 8: Persistence guard
+
+**Modified: `src/store/workspace-actions.ts`** (or session restore logic) — After loading a session, force `terminalOpen: false` since terminal sessions are ephemeral. `terminalHeightPx` persists (user preference).
+
+### Step 9: Tests
+
+| Test File | Covers |
+|-----------|--------|
+| `src/__tests__/store/terminal-store.test.ts` | State transitions, clear(), initial state |
+| `src/__tests__/store/view-store-terminal.test.ts` | toggleTerminal, height clamping, clear resets |
+| `src/__tests__/services/local-echo-backend.test.ts` | connect/disconnect lifecycle, built-in commands, state transitions |
+| `src/__tests__/components/terminal-drawer.test.tsx` | Mocked xterm (jsdom has no canvas), integration with stores |
+
+Add `ResizeObserver` polyfill to `src/__tests__/setup.ts`.
+
+### Files Summary
+
+**New (8):**
+1. `src/services/terminal-backend.ts`
+2. `src/services/local-echo-backend.ts`
+3. `src/services/terminal-factory.ts`
+4. `src/store/terminal-store.ts`
+5. `src/store/terminal-actions.ts`
+6. `src/components/TerminalDrawer/TerminalDrawer.tsx`
+7. `src/components/TerminalDrawer/TerminalDrawer.module.css`
+8. `src/components/TerminalDrawer/xterm-theme.ts`
+
+**Modified (7):**
+1. `package.json` — add xterm deps
+2. `src/store/view-store.ts` — terminal geometry state
+3. `src/App.tsx` — layout wrapper, keyboard shortcut, TerminalDrawer render
+4. `src/App.css` — `.exploring-content` flex column
+5. `src/components/Toolbar/Toolbar.tsx` — Terminal toggle button
+6. `src/components/Toolbar/Toolbar.module.css` — toggle styles
+7. `src/components/Settings/theme.css` — terminal CSS vars
+
+**New tests (4):**
+1. `src/__tests__/store/terminal-store.test.ts`
+2. `src/__tests__/store/view-store-terminal.test.ts`
+3. `src/__tests__/services/local-echo-backend.test.ts`
+4. `src/__tests__/components/terminal-drawer.test.tsx`
+
+### Verification
+
+1. `npm run build` — TypeScript compiles without errors
+2. `npm test` — all new and existing tests pass
+3. Manual: open canvas → click Terminal button (or `Ctrl+``) → drawer opens, pushes canvas up → type `help` → see built-in commands → resize handle works (200–520px range) → collapse/reopen preserves terminal state → "End Session" clears terminal → Plan panel + terminal can coexist → light/dark theme switch updates terminal colors
