@@ -2,30 +2,39 @@ import { useState } from 'react';
 import type { AppSettings } from '../../persistence/settings-store.ts';
 import styles from './Settings.module.css';
 
-interface ApiTabProps {
-  settings: AppSettings;
-  onUpdate: (partial: Partial<AppSettings>) => void;
-}
-
-function getKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
+function getGeminiKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
   if (!key) return 'not-set';
   if (key.startsWith('AI') && key.length > 20) return 'valid';
   return 'invalid';
 }
 
-export function ApiTab({ settings, onUpdate }: ApiTabProps) {
-  const [showKey, setShowKey] = useState(false);
-  const status = getKeyStatus(settings.geminiApiKey);
+function getElevenLabsKeyStatus(key: string): 'not-set' | 'valid' | 'invalid' {
+  if (!key) return 'not-set';
+  if (/^[a-f0-9]{32}$/i.test(key)) return 'valid';
+  if (key.length >= 20) return 'valid'; // Some keys differ in format
+  return 'invalid';
+}
 
-  const statusLabel =
-    status === 'not-set' ? 'Not set' :
-    status === 'valid' ? 'Valid format' :
-    'Invalid format';
+const STATUS_LABELS = {
+  'not-set': 'Not set',
+  valid: 'Valid format',
+  invalid: 'Invalid format',
+} as const;
 
-  const statusClass =
-    status === 'not-set' ? styles.statusNotSet :
-    status === 'valid' ? styles.statusValid :
-    styles.statusInvalid;
+function statusClass(status: 'not-set' | 'valid' | 'invalid') {
+  return status === 'not-set'
+    ? styles.statusNotSet
+    : status === 'valid'
+      ? styles.statusValid
+      : styles.statusInvalid;
+}
+
+export function ApiTab({ settings, onUpdate }: { settings: AppSettings; onUpdate: (partial: Partial<AppSettings>) => void }) {
+  const [showGemini, setShowGemini] = useState(false);
+  const [showElevenLabs, setShowElevenLabs] = useState(false);
+
+  const geminiStatus = getGeminiKeyStatus(settings.geminiApiKey);
+  const elevenLabsStatus = getElevenLabsKeyStatus(settings.elevenLabsApiKey);
 
   return (
     <div>
@@ -34,7 +43,7 @@ export function ApiTab({ settings, onUpdate }: ApiTabProps) {
         <div className={styles.inputGroup}>
           <input
             className={styles.textInput}
-            type={showKey ? 'text' : 'password'}
+            type={showGemini ? 'text' : 'password'}
             value={settings.geminiApiKey}
             onChange={(e) => onUpdate({ geminiApiKey: e.target.value })}
             placeholder="AIza..."
@@ -43,28 +52,43 @@ export function ApiTab({ settings, onUpdate }: ApiTabProps) {
           <button
             type="button"
             className={styles.toggleButton}
-            onClick={() => setShowKey((v) => !v)}
-            aria-label={showKey ? 'Hide API key' : 'Show API key'}
+            onClick={() => setShowGemini((v) => !v)}
+            aria-label={showGemini ? 'Hide API key' : 'Show API key'}
           >
-            {showKey ? 'Hide' : 'Show'}
+            {showGemini ? 'Hide' : 'Show'}
           </button>
         </div>
-        <div className={`${styles.statusIndicator} ${statusClass}`} data-testid="key-status">
-          {statusLabel}
+        <div className={`${styles.statusIndicator} ${statusClass(geminiStatus)}`} data-testid="gemini-key-status">
+          {STATUS_LABELS[geminiStatus]}
         </div>
       </fieldset>
 
       <fieldset className={styles.fieldset}>
-        <button
-          type="button"
-          className={styles.testButton}
-          disabled={status !== 'valid'}
-          onClick={() => {
-            /* placeholder — validates format only */
-          }}
-        >
-          Test Connection
-        </button>
+        <legend className={styles.legend}>ElevenLabs API Key</legend>
+        <div className={styles.inputGroup}>
+          <input
+            className={styles.textInput}
+            type={showElevenLabs ? 'text' : 'password'}
+            value={settings.elevenLabsApiKey}
+            onChange={(e) => onUpdate({ elevenLabsApiKey: e.target.value })}
+            placeholder="Enter ElevenLabs API key"
+            aria-label="ElevenLabs API key"
+          />
+          <button
+            type="button"
+            className={styles.toggleButton}
+            onClick={() => setShowElevenLabs((v) => !v)}
+            aria-label={showElevenLabs ? 'Hide API key' : 'Show API key'}
+          >
+            {showElevenLabs ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <div className={`${styles.statusIndicator} ${statusClass(elevenLabsStatus)}`} data-testid="elevenlabs-key-status">
+          {STATUS_LABELS[elevenLabsStatus]}
+        </div>
+        <p className={styles.statusIndicator} style={{ color: 'var(--text-muted, #999)' }}>
+          Voice transcription audio is sent to ElevenLabs when enabled.
+        </p>
       </fieldset>
     </div>
   );

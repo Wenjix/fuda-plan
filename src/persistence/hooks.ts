@@ -1,6 +1,7 @@
 import { useSemanticStore } from '../store/semantic-store';
 import { useSessionStore } from '../store/session-store';
-import { putEntity, loadSessionEnvelope, getAllByIndex } from './repository';
+import { usePlanTalkStore } from '../store/plan-talk-store';
+import { putEntity, loadSessionEnvelope } from './repository';
 import {
   PlanningSessionSchema,
   ModelLaneSchema,
@@ -10,6 +11,7 @@ import {
   LanePlanSchema,
   UnifiedPlanSchema,
   DialogueTurnSchema,
+  PlanTalkTurnSchema,
 } from '../core/types';
 import type { z } from 'zod';
 
@@ -37,6 +39,7 @@ export async function saveSession(): Promise<void> {
     ...lanePlans.map(lp => putEntity('lanePlans', lp)),
     ...(unifiedPlan ? [putEntity('unifiedPlans', unifiedPlan)] : []),
     ...dialogueTurns.map(dt => putEntity('dialogueTurns', dt)),
+    ...usePlanTalkStore.getState().turns.map(t => putEntity('planTalkTurns', t)),
   ]);
 }
 
@@ -57,9 +60,11 @@ export function debouncedSave(): void {
 export function startAutoSave(): () => void {
   const unsub1 = useSemanticStore.subscribe(debouncedSave);
   const unsub2 = useSessionStore.subscribe(debouncedSave);
+  const unsub3 = usePlanTalkStore.subscribe(debouncedSave);
   return () => {
     unsub1();
     unsub2();
+    unsub3();
     if (debounceTimer) clearTimeout(debounceTimer);
   };
 }
@@ -114,6 +119,7 @@ export async function restoreSession(sessionId: string): Promise<boolean> {
     const lanePlans = validateEntities(envelope.lanePlans, LanePlanSchema, 'lanePlan');
     const unifiedPlans = validateEntities(envelope.unifiedPlans, UnifiedPlanSchema, 'unifiedPlan');
     const dialogueTurns = validateEntities(envelope.dialogueTurns, DialogueTurnSchema, 'dialogueTurn');
+    const planTalkTurns = validateEntities(envelope.planTalkTurns, PlanTalkTurnSchema, 'planTalkTurn');
 
     // Hydrate session store
     useSessionStore.getState().setSession(session);
@@ -136,6 +142,9 @@ export async function restoreSession(sessionId: string): Promise<boolean> {
       unifiedPlan: unifiedPlans[0] ?? null,
       dialogueTurns,
     });
+
+    // Hydrate plan talk store with persisted transcript turns
+    usePlanTalkStore.getState().loadTurns(planTalkTurns);
 
     return true;
   } catch {

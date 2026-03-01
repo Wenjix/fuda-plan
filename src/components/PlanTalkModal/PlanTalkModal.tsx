@@ -11,6 +11,7 @@ export function PlanTalkModal() {
   const close = usePlanTalkStore((s) => s.close);
   const clear = usePlanTalkStore((s) => s.clear);
   const pendingEdits = usePlanTalkStore((s) => s.pendingEdits);
+  const setPendingEdits = usePlanTalkStore((s) => s.setPendingEdits);
   const unifiedPlan = useSemanticStore((s) => s.unifiedPlan);
 
   const acceptedCount = pendingEdits.filter((e) => e.approved).length;
@@ -23,6 +24,10 @@ export function PlanTalkModal() {
   const handleApply = useCallback(() => {
     applyAllAccepted();
   }, []);
+
+  const handleDiscard = useCallback(() => {
+    setPendingEdits([]);
+  }, [setPendingEdits]);
 
   // Close on Escape
   useEffect(() => {
@@ -57,6 +62,14 @@ export function PlanTalkModal() {
         <AnalysisPane />
 
         <div className={styles.footer}>
+          <button
+            className={styles.discardBtn}
+            onClick={handleDiscard}
+            disabled={pendingEdits.length === 0}
+            type="button"
+          >
+            Discard Draft
+          </button>
           <button
             className={styles.applyBtn}
             onClick={handleApply}

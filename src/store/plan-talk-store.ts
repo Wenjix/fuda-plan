@@ -22,6 +22,7 @@ interface PlanTalkState {
   updateEditStatus: (editId: string, approved: boolean) => void;
   setError: (error: string | null) => void;
   clear: () => void;
+  loadTurns: (turns: PlanTalkTurn[]) => void;
 }
 
 export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
@@ -59,4 +60,5 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
       unresolvedQuestions: [],
       error: null,
     }),
+  loadTurns: (turns) => set({ turns }),
 }));

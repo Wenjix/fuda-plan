@@ -7,38 +7,44 @@ import { buildPlanReflectionPrompt } from '../generation/prompts/plan-reflection
 import { PlanReflectionResponseSchema } from '../core/types';
 import type { PlanTalkTurn, PlanSectionKey, StructuredPlan, PlanSection, UnifiedPlan } from '../core/types';
 import { generateId } from '../utils/ids';
+import { transcribeAudio, ElevenLabsSTTError } from '../services/voice/elevenlabs-client';
 
 /**
  * Send user reflection text to AI for analysis against the unified plan.
  */
-export async function analyzeReflection(transcriptText: string): Promise<void> {
+export async function analyzeReflection(transcriptText: string, source: 'voice' | 'typed' = 'typed'): Promise<void> {
   const store = usePlanTalkStore.getState();
+
+  // Guard against concurrent calls
+  if (store.turnState === 'analyzing') return;
+
   const session = useSessionStore.getState().session;
   const unifiedPlan = useSemanticStore.getState().unifiedPlan;
 
   if (!session) throw new Error('No active session');
   if (!unifiedPlan) throw new Error('No unified plan to reflect on');
 
-  // Add user turn
+  // Add user turn — read fresh state for turnIndex
   const userTurn: PlanTalkTurn = {
     id: generateId(),
     sessionId: session.id,
     unifiedPlanId: unifiedPlan.id,
-    turnIndex: store.turns.length,
+    turnIndex: usePlanTalkStore.getState().turns.length,
     speaker: 'user',
     transcriptText,
-    source: 'typed',
+    source,
     createdAt: new Date().toISOString(),
   };
-  store.addTurn(userTurn);
-  store.setTurnState('analyzing');
-  store.setError(null);
+  usePlanTalkStore.getState().addTurn(userTurn);
+  usePlanTalkStore.getState().setTurnState('analyzing');
+  usePlanTalkStore.getState().setError(null);
 
   try {
     const settings = await loadSettings();
     const provider = getProvider(settings.geminiApiKey ?? '');
 
-    const allTurns = [...store.turns, userTurn];
+    // Read fresh turns from store (includes the userTurn we just added)
+    const allTurns = usePlanTalkStore.getState().turns;
     const prompt = buildPlanReflectionPrompt(allTurns, unifiedPlan, session.topic);
     const raw = await provider.generate(prompt);
 
@@ -49,32 +55,53 @@ export async function analyzeReflection(transcriptText: string): Promise<void> {
     const parsed = JSON.parse(jsonMatch[0]);
     const result = PlanReflectionResponseSchema.safeParse(parsed);
     if (!result.success) {
-      throw new Error(`Validation failed: ${result.error.message}`);
+      usePlanTalkStore.getState().setError('Could not generate structured edits this turn. Please try again.');
+      usePlanTalkStore.getState().setTurnState('error');
+      return;
     }
 
     const data = result.data;
 
-    // Add AI turn
+    // Add AI turn — read fresh state for turnIndex
     const aiTurn: PlanTalkTurn = {
       id: generateId(),
       sessionId: session.id,
       unifiedPlanId: unifiedPlan.id,
-      turnIndex: store.turns.length + 1,
+      turnIndex: usePlanTalkStore.getState().turns.length,
       speaker: 'ai',
       transcriptText: data.understanding,
-      source: 'typed',
+      source,
       createdAt: new Date().toISOString(),
     };
 
-    store.addTurn(aiTurn);
-    store.setUnderstanding(data.understanding);
-    store.setGapCards(data.gapCards);
-    store.setPendingEdits(data.proposedEdits);
-    store.setUnresolvedQuestions(data.unresolvedQuestions);
-    store.setTurnState('responded');
+    usePlanTalkStore.getState().addTurn(aiTurn);
+    usePlanTalkStore.getState().setUnderstanding(data.understanding);
+    usePlanTalkStore.getState().setGapCards(data.gapCards);
+    usePlanTalkStore.getState().setPendingEdits(data.proposedEdits);
+    usePlanTalkStore.getState().setUnresolvedQuestions(data.unresolvedQuestions);
+    usePlanTalkStore.getState().setTurnState('responded');
   } catch (err) {
-    store.setError(err instanceof Error ? err.message : 'Analysis failed');
-    store.setTurnState('error');
+    usePlanTalkStore.getState().setError(err instanceof Error ? err.message : 'Analysis failed');
+    usePlanTalkStore.getState().setTurnState('error');
+  }
+}
+
+/**
+ * Record audio, transcribe via ElevenLabs STT, then analyze.
+ */
+export async function transcribeAndAnalyze(audioBlob: Blob, apiKey: string): Promise<void> {
+  usePlanTalkStore.getState().setTurnState('transcribing');
+  usePlanTalkStore.getState().setError(null);
+
+  try {
+    const text = await transcribeAudio(audioBlob, apiKey);
+    await analyzeReflection(text, 'voice');
+  } catch (err) {
+    const message = err instanceof ElevenLabsSTTError
+      ? err.message
+      : 'Transcription failed. Please try again.';
+    usePlanTalkStore.getState().setError(message);
+    usePlanTalkStore.getState().setTurnState('error');
   }
 }
 
@@ -93,6 +120,11 @@ export function applyEdit(editId: string): void {
 
   const updated = applyMutation(plan, edit.sectionKey, edit.operation, edit);
   semanticStore.setUnifiedPlan(updated);
+
+  // Remove applied edit from pending to prevent double-apply
+  usePlanTalkStore.getState().setPendingEdits(
+    usePlanTalkStore.getState().pendingEdits.filter((e) => e.id !== editId),
+  );
 }
 
 /**
@@ -108,11 +140,35 @@ export function applyAllAccepted(): void {
   const accepted = store.pendingEdits.filter((e) => e.approved);
   if (accepted.length === 0) return;
 
+  const acceptedIds = new Set(accepted.map((e) => e.id));
+
   for (const edit of accepted) {
     plan = applyMutation(plan, edit.sectionKey, edit.operation, edit);
   }
 
   semanticStore.setUnifiedPlan(plan);
+
+  // Remove applied edits from pending to prevent double-apply
+  usePlanTalkStore.getState().setPendingEdits(
+    usePlanTalkStore.getState().pendingEdits.filter((e) => !acceptedIds.has(e.id)),
+  );
+
+  // Record summary turn in transcript
+  const session = useSessionStore.getState().session;
+  const updatedPlan = useSemanticStore.getState().unifiedPlan;
+  if (session && updatedPlan) {
+    const summaryTurn: PlanTalkTurn = {
+      id: generateId(),
+      sessionId: session.id,
+      unifiedPlanId: updatedPlan.id,
+      turnIndex: usePlanTalkStore.getState().turns.length,
+      speaker: 'ai',
+      transcriptText: `Applied ${accepted.length} edit(s). Plan updated to revision ${updatedPlan.revision ?? 1}.`,
+      source: 'typed',
+      createdAt: new Date().toISOString(),
+    };
+    usePlanTalkStore.getState().addTurn(summaryTurn);
+  }
 }
 
 // --- Internal helpers ---
@@ -125,6 +181,7 @@ function applyMutation(
 ): UnifiedPlan {
   const sections = structuredClone(plan.sections) as StructuredPlan;
   const sectionArray: PlanSection[] = sections[sectionKey];
+  let mutated = false;
 
   switch (operation) {
     case 'add_section': {
@@ -133,6 +190,7 @@ function applyMutation(
         content: edit.draftContent ?? ['(content pending)'],
         evidence: plan.evidence.length > 0 ? [plan.evidence[0]] : [],
       });
+      mutated = true;
       break;
     }
     case 'update_section': {
@@ -140,6 +198,7 @@ function applyMutation(
       if (idx >= 0) {
         if (edit.draftHeading) sectionArray[idx].heading = edit.draftHeading;
         if (edit.draftContent) sectionArray[idx].content = edit.draftContent;
+        mutated = true;
       }
       break;
     }
@@ -147,6 +206,7 @@ function applyMutation(
       const removeIdx = sectionArray.findIndex((s) => s.heading === edit.targetHeading);
       if (removeIdx >= 0 && sectionArray.length > 1) {
         sectionArray.splice(removeIdx, 1);
+        mutated = true;
       }
       break;
     }
@@ -154,10 +214,14 @@ function applyMutation(
       const bulletIdx = sectionArray.findIndex((s) => s.heading === edit.targetHeading);
       if (bulletIdx >= 0 && edit.draftContent) {
         sectionArray[bulletIdx].content = edit.draftContent;
+        mutated = true;
       }
       break;
     }
   }
+
+  // Only bump revision if something actually changed
+  if (!mutated) return plan;
 
   return {
     ...plan,

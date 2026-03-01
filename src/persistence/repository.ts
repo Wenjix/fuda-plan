@@ -11,45 +11,45 @@ let dbPromise: Promise<IDBPDatabase<FudaDB>> | null = null;
 export function getDB(): Promise<IDBPDatabase<FudaDB>> {
   if (!dbPromise) {
     dbPromise = openDB<FudaDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        // sessions — no indexes
-        db.createObjectStore('sessions', { keyPath: 'id' });
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          // v1 stores
+          db.createObjectStore('sessions', { keyPath: 'id' });
 
-        // lanes
-        const lanes = db.createObjectStore('lanes', { keyPath: 'id' });
-        lanes.createIndex('by-session', 'sessionId');
+          const lanes = db.createObjectStore('lanes', { keyPath: 'id' });
+          lanes.createIndex('by-session', 'sessionId');
 
-        // nodes
-        const nodes = db.createObjectStore('nodes', { keyPath: 'id' });
-        nodes.createIndex('by-session', 'sessionId');
-        nodes.createIndex('by-lane', 'laneId');
+          const nodes = db.createObjectStore('nodes', { keyPath: 'id' });
+          nodes.createIndex('by-session', 'sessionId');
+          nodes.createIndex('by-lane', 'laneId');
 
-        // edges
-        const edges = db.createObjectStore('edges', { keyPath: 'id' });
-        edges.createIndex('by-session', 'sessionId');
+          const edges = db.createObjectStore('edges', { keyPath: 'id' });
+          edges.createIndex('by-session', 'sessionId');
 
-        // promotions
-        const promotions = db.createObjectStore('promotions', { keyPath: 'id' });
-        promotions.createIndex('by-session', 'sessionId');
-        promotions.createIndex('by-lane', 'laneId');
+          const promotions = db.createObjectStore('promotions', { keyPath: 'id' });
+          promotions.createIndex('by-session', 'sessionId');
+          promotions.createIndex('by-lane', 'laneId');
 
-        // lanePlans
-        const lanePlans = db.createObjectStore('lanePlans', { keyPath: 'id' });
-        lanePlans.createIndex('by-session', 'sessionId');
-        lanePlans.createIndex('by-lane', 'laneId');
+          const lanePlans = db.createObjectStore('lanePlans', { keyPath: 'id' });
+          lanePlans.createIndex('by-session', 'sessionId');
+          lanePlans.createIndex('by-lane', 'laneId');
 
-        // unifiedPlans
-        const unifiedPlans = db.createObjectStore('unifiedPlans', { keyPath: 'id' });
-        unifiedPlans.createIndex('by-session', 'sessionId');
+          const unifiedPlans = db.createObjectStore('unifiedPlans', { keyPath: 'id' });
+          unifiedPlans.createIndex('by-session', 'sessionId');
 
-        // dialogueTurns
-        const dialogueTurns = db.createObjectStore('dialogueTurns', { keyPath: 'id' });
-        dialogueTurns.createIndex('by-session', 'sessionId');
-        dialogueTurns.createIndex('by-node', 'nodeId');
+          const dialogueTurns = db.createObjectStore('dialogueTurns', { keyPath: 'id' });
+          dialogueTurns.createIndex('by-session', 'sessionId');
+          dialogueTurns.createIndex('by-node', 'nodeId');
 
-        // jobs
-        const jobs = db.createObjectStore('jobs', { keyPath: 'id' });
-        jobs.createIndex('by-session', 'sessionId');
+          const jobs = db.createObjectStore('jobs', { keyPath: 'id' });
+          jobs.createIndex('by-session', 'sessionId');
+        }
+
+        if (oldVersion < 2) {
+          const planTalkTurns = db.createObjectStore('planTalkTurns', { keyPath: 'id' });
+          planTalkTurns.createIndex('by-session', 'sessionId');
+          planTalkTurns.createIndex('by-unified-plan', 'unifiedPlanId');
+        }
       },
     });
   }
@@ -121,6 +121,7 @@ export interface SessionEnvelope {
   lanePlans: StoreValue<FudaDB, 'lanePlans'>[];
   unifiedPlans: StoreValue<FudaDB, 'unifiedPlans'>[];
   dialogueTurns: StoreValue<FudaDB, 'dialogueTurns'>[];
+  planTalkTurns: StoreValue<FudaDB, 'planTalkTurns'>[];
 }
 
 /**
@@ -132,7 +133,7 @@ export async function loadSessionEnvelope(
 ): Promise<SessionEnvelope> {
   const db = await getDB();
 
-  const [session, lanes, nodes, edges, promotions, lanePlans, unifiedPlans, dialogueTurns] =
+  const [session, lanes, nodes, edges, promotions, lanePlans, unifiedPlans, dialogueTurns, planTalkTurns] =
     await Promise.all([
       db.get('sessions', sessionId),
       db.getAllFromIndex('lanes', 'by-session', sessionId),
@@ -142,11 +143,12 @@ export async function loadSessionEnvelope(
       db.getAllFromIndex('lanePlans', 'by-session', sessionId),
       db.getAllFromIndex('unifiedPlans', 'by-session', sessionId),
       db.getAllFromIndex('dialogueTurns', 'by-session', sessionId),
+      db.getAllFromIndex('planTalkTurns', 'by-session', sessionId),
     ]);
 
   if (!session) {
     throw new Error(`Session not found: ${sessionId}`);
   }
 
-  return { session, lanes, nodes, edges, promotions, lanePlans, unifiedPlans, dialogueTurns };
+  return { session, lanes, nodes, edges, promotions, lanePlans, unifiedPlans, dialogueTurns, planTalkTurns };
 }

@@ -9,6 +9,7 @@ import type {
   UnifiedPlan,
   DialogueTurn,
   GenerationJob,
+  PlanTalkTurn,
 } from '../core/types';
 
 export interface FudaDB extends DBSchema {
@@ -56,7 +57,12 @@ export interface FudaDB extends DBSchema {
     value: GenerationJob;
     indexes: { 'by-session': string };
   };
+  planTalkTurns: {
+    key: string;
+    value: PlanTalkTurn;
+    indexes: { 'by-session': string; 'by-unified-plan': string };
+  };
 }
 
 export const DB_NAME = 'fuda-plan';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
