@@ -1,6 +1,7 @@
 import type { LanePlan, StructuredPlan, EvidenceRef, PersonaId } from '../core/types';
 import { useSemanticStore } from './semantic-store';
 import { useSessionStore } from './session-store';
+import { useToastStore } from './toast-store';
 import { generateId } from '../utils/ids';
 import { buildLanePlanPrompt } from '../generation/prompts/lane-plan';
 import { getProviderForPersona } from '../generation/providers';
@@ -69,6 +70,11 @@ export async function generateLanePlan(laneId: string, personaId: PersonaId): Pr
     useSessionStore.getState().setSession({ ...session, status: newStatus });
     if (newStatus === 'synthesis_ready') {
       useSessionStore.getState().setPlanPanelOpen(true);
+      useToastStore.getState().addToast(
+        `${lanePlanCount} lane plans ready \u2014 you can now synthesize a unified plan`,
+        'info',
+        5000,
+      );
     }
   }
 

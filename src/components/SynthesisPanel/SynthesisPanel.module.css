@@ -50,6 +50,33 @@
   margin: 0;
 }
 
+/* Lane status chips */
+.laneChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.laneChip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1.5px solid;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.laneChip:hover:not(.laneChipDone) {
+  opacity: 0.8;
+}
+
+.laneChipDone {
+  cursor: default;
+}
+
 /* Ready state */
 .readySection {
   text-align: center;

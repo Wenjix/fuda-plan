@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import type { UnifiedPlan, LanePlan, PlanSection } from '../../core/types';
 import { SYNTHESIS_THRESHOLD } from '../../core/fsm/session-fsm';
+import { useSemanticStore } from '../../store/semantic-store';
+import { useSessionStore } from '../../store/session-store';
 import { EvidenceTrail } from '../EvidenceTrail/EvidenceTrail';
 import styles from './SynthesisPanel.module.css';
 
@@ -171,6 +173,11 @@ export function SynthesisPanel({
   // Not ready: show disabled progress
   const planCount = lanePlans.length;
   const progressPct = Math.round((planCount / SYNTHESIS_THRESHOLD) * 100);
+  const lanes = useSemanticStore(s => s.lanes);
+  const setActiveLane = useSessionStore(s => s.setActiveLane);
+
+  const laneHasPlan = (laneId: string) =>
+    lanePlans.some(p => p.laneId === laneId);
 
   return (
     <div className={styles.panel}>
@@ -184,6 +191,25 @@ export function SynthesisPanel({
         <p className={styles.progressLabel}>
           {planCount} of {SYNTHESIS_THRESHOLD} lane plans ready
         </p>
+        {lanes.length > 0 && (
+          <div className={styles.laneChips}>
+            {lanes.map(lane => {
+              const hasPlan = laneHasPlan(lane.id);
+              return (
+                <button
+                  key={lane.id}
+                  className={`${styles.laneChip} ${hasPlan ? styles.laneChipDone : ''}`}
+                  style={{ borderColor: lane.colorToken, color: hasPlan ? '#fff' : lane.colorToken, background: hasPlan ? lane.colorToken : 'transparent' }}
+                  onClick={() => !hasPlan && setActiveLane(lane.id)}
+                  title={hasPlan ? `${lane.label}: plan generated` : `${lane.label}: click to switch`}
+                  type="button"
+                >
+                  {lane.label} {hasPlan ? '\u2713' : '\u25CB'}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

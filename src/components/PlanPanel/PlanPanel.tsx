@@ -45,10 +45,21 @@ export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize, onTal
         <PlanCard plan={activePlan} onEvidenceClick={onEvidenceClick} />
       ) : (
         <div className={styles.empty}>
-          <p className={styles.emptyText}>No plan generated for this lane yet.</p>
-          <p className={styles.promotionCount}>
-            {promotionCount} promoted node{promotionCount !== 1 ? 's' : ''}
-          </p>
+          {promotionCount === 0 ? (
+            <>
+              <p className={styles.emptyHeading}>Promote nodes to build your plan</p>
+              <p className={styles.emptyHint}>
+                Click the &#x2606; on any resolved node to mark it as evidence for planning.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className={styles.emptyText}>No plan generated for this lane yet.</p>
+              <p className={styles.promotionCount}>
+                {promotionCount} promoted node{promotionCount !== 1 ? 's' : ''} ready
+              </p>
+            </>
+          )}
           <button
             className={styles.generateBtn}
             onClick={() => activeLaneId && onGeneratePlan(activeLaneId)}
