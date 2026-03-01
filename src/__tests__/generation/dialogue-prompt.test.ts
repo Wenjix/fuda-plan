@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildDialoguePrompt } from '../../generation/prompts/dialogue'
+import { buildDialoguePrompt, buildConcludeSynthesisPrompt } from '../../generation/prompts/dialogue'
 import type { DialogueTurn, CompiledContext, DialecticMode, ChallengeDepth } from '../../core/types'
 
 const now = '2026-03-01T00:00:00.000+00:00'
@@ -56,7 +56,7 @@ describe('buildDialoguePrompt', () => {
 
   describe('challenge depth modulation', () => {
     it.each([
-      ['gentle', 'Gently probe'],
+      ['gentle', 'Gently probe assumptions'],
       ['balanced', 'Challenge directly'],
       ['intense', 'Rigorously interrogate'],
     ] as [ChallengeDepth, string][])('includes %s depth instruction', (depth, expected) => {
@@ -132,5 +132,44 @@ describe('buildDialoguePrompt', () => {
         }
       }
     })
+  })
+})
+
+describe('buildConcludeSynthesisPrompt', () => {
+  const originalAnswer = {
+    summary: 'Big-bang migration is risky but faster.',
+    bullets: [
+      'Reduces deployment coupling immediately',
+      'Requires extensive testing before cutover',
+    ],
+  }
+
+  it('contains SYSTEM marker', () => {
+    const result = buildConcludeSynthesisPrompt(history, mockContext, originalAnswer)
+    expect(result).toContain('[SYSTEM]')
+  })
+
+  it('contains the original answer', () => {
+    const result = buildConcludeSynthesisPrompt(history, mockContext, originalAnswer)
+    expect(result).toContain('[ORIGINAL ANSWER]')
+    expect(result).toContain(originalAnswer.summary)
+    expect(result).toContain(originalAnswer.bullets[0])
+  })
+
+  it('contains dialogue history', () => {
+    const result = buildConcludeSynthesisPrompt(history, mockContext, originalAnswer)
+    expect(result).toContain('[DIALOGUE]')
+    expect(result).toContain('User: I think we should do a big-bang migration.')
+  })
+
+  it('contains graph context', () => {
+    const result = buildConcludeSynthesisPrompt(history, mockContext, originalAnswer)
+    expect(result).toContain(mockContext.formatted)
+  })
+
+  it('requests JSON output matching answer schema', () => {
+    const result = buildConcludeSynthesisPrompt(history, mockContext, originalAnswer)
+    expect(result).toContain('"summary"')
+    expect(result).toContain('"bullets"')
   })
 })
