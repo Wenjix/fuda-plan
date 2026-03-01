@@ -110,6 +110,11 @@ export async function probeVibeToolStatus(): Promise<TerminalToolStatus> {
 
     store.setToolStatus('mistralVibe', status);
     return status;
+  } catch (err) {
+    useTerminalStore.getState().setErrorMessage(
+      err instanceof Error ? err.message : 'Vibe tool probe failed',
+    );
+    throw err;
   } finally {
     useTerminalStore.getState().setToolProbeInProgress(false);
   }

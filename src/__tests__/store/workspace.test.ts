@@ -130,6 +130,37 @@ describe('workspace-actions', () => {
         'Failed to restore session: nonexistent-id',
       );
     });
+
+    it('serializes concurrent switchSession calls', async () => {
+      const session = makeSession();
+      useSessionStore.getState().setSession(session);
+
+      // Track call order
+      const callOrder: string[] = [];
+      mockSaveSession.mockImplementation(async () => {
+        callOrder.push('save-start');
+        await new Promise((r) => setTimeout(r, 50));
+        callOrder.push('save-end');
+      });
+      mockRestoreSession.mockImplementation(async (id: string) => {
+        callOrder.push(`restore-${id}-start`);
+        await new Promise((r) => setTimeout(r, 50));
+        callOrder.push(`restore-${id}-end`);
+        return true;
+      });
+
+      // Fire two switches concurrently
+      const p1 = switchSession('session-a');
+      const p2 = switchSession('session-b');
+      await Promise.all([p1, p2]);
+
+      // Second switch should not start restoring until first is done
+      const restoreAStart = callOrder.indexOf('restore-session-a-start');
+      const restoreAEnd = callOrder.indexOf('restore-session-a-end');
+      const restoreBStart = callOrder.indexOf('restore-session-b-start');
+      expect(restoreBStart).toBeGreaterThan(restoreAEnd);
+      expect(restoreAStart).toBeLessThan(restoreAEnd);
+    });
   });
 
   describe('deleteSession', () => {

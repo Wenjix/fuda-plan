@@ -16,6 +16,7 @@ export function TerminalDrawer() {
   const terminalHeightPx = useViewStore((s) => s.terminalHeightPx);
   const setTerminalHeight = useViewStore((s) => s.setTerminalHeight);
   const connectionState = useTerminalStore((s) => s.connectionState);
+  const errorMessage = useTerminalStore((s) => s.errorMessage);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -78,7 +79,7 @@ export function TerminalDrawer() {
           // Auto-probe Vibe tool status when backend becomes ready
           if (state === 'ready') {
             probeVibeToolStatus().catch(() => {
-              // Non-blocking; if probe fails, notice stays in default state
+              // Error is surfaced via store.errorMessage
             });
           }
         },
@@ -190,7 +191,9 @@ export function TerminalDrawer() {
           onStateChange: (state) => {
             useTerminalStore.getState().setConnectionState(state);
             if (state === 'ready') {
-              probeVibeToolStatus().catch(() => {});
+              probeVibeToolStatus().catch(() => {
+                // Error is surfaced via store.errorMessage
+              });
             }
           },
           onExit: (exitCode, signal) => {
@@ -237,6 +240,21 @@ export function TerminalDrawer() {
           End Session
         </button>
       </div>
+
+      {/* Error banner */}
+      {errorMessage && (
+        <div className={styles.errorBanner}>
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            className={styles.errorDismiss}
+            onClick={() => useTerminalStore.getState().setErrorMessage(null)}
+            aria-label="Dismiss error"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Vibe setup notice (install/setup banners — does not block terminal) */}
       {vibeReadiness !== 'ready' && vibeReadiness !== 'unknown' && <TerminalSetupNotice />}

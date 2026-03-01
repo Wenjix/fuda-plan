@@ -169,8 +169,8 @@ describe('LaneSelector component', () => {
 
     render(<LaneSelector lanes={lanes} />);
 
-    const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(4);
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(4);
   });
 
   it('displays lane labels', () => {
@@ -201,7 +201,7 @@ describe('LaneSelector component', () => {
   it('renders with no lanes gracefully', () => {
     render(<LaneSelector lanes={[]} />);
 
-    const buttons = screen.queryAllByRole('button');
-    expect(buttons).toHaveLength(0);
+    const tabs = screen.queryAllByRole('tab');
+    expect(tabs).toHaveLength(0);
   });
 });
