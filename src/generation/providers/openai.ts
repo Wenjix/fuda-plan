@@ -8,6 +8,7 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
       'https://api.openai.com/v1/chat/completions',
       PROVIDER_MODELS.openai,
       'OpenAI API',
+      'max_completion_tokens',
     );
   }
 }

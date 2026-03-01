@@ -16,12 +16,14 @@ export class OpenAICompatibleProvider implements GenerationProvider {
   protected baseUrl: string;
   protected model: string;
   protected label: string;
+  protected tokenParamName: string;
 
-  constructor(apiKey: string, baseUrl: string, model: string, label: string) {
+  constructor(apiKey: string, baseUrl: string, model: string, label: string, tokenParamName = 'max_tokens') {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.model = model;
     this.label = label;
+    this.tokenParamName = tokenParamName;
   }
 
   async generate(prompt: string): Promise<string> {
@@ -37,7 +39,7 @@ export class OpenAICompatibleProvider implements GenerationProvider {
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 2048,
+          [this.tokenParamName]: 2048,
           response_format: { type: 'json_object' },
         }),
       },
@@ -67,7 +69,7 @@ export class OpenAICompatibleProvider implements GenerationProvider {
           model: this.model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.7,
-          max_tokens: 2048,
+          [this.tokenParamName]: 2048,
           response_format: { type: 'json_object' },
           stream: true,
         }),

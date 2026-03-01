@@ -16,7 +16,7 @@ export const PERSONA_PROVIDER_MAP: Record<PersonaId, ProviderId> = {
 
 export const PROVIDER_MODELS: Record<ProviderId, string> = {
   mistral: 'mistral-large-2512',
-  gemini: 'gemini-3.1-pro-preview',
+  gemini: 'gemini-3.0-flash',
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-5.2-chat-latest',
 };
