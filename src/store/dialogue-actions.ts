@@ -1,0 +1,171 @@
+import type { DialecticMode, DialogueTurn, ChallengeDepth } from '../core/types';
+import { useSemanticStore } from './semantic-store';
+import { useSessionStore } from './session-store';
+import { useViewStore } from './view-store';
+import { generateId } from '../utils/ids';
+import { compileContext } from '../core/graph/context-compiler';
+import { buildDialoguePrompt, buildConcludeSynthesisPrompt } from '../generation/prompts/dialogue';
+import { getProvider } from '../generation/providers';
+import { parseAndValidate } from '../core/validation/schema-gates';
+import { loadSettings } from '../persistence/settings-store';
+
+/**
+ * Add a user turn to the dialogue.
+ */
+export function addUserTurn(nodeId: string, content: string, mode: DialecticMode): DialogueTurn {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('No active session');
+
+  const turns = useSemanticStore.getState().getDialogueTurnsByNode(nodeId);
+  const turn: DialogueTurn = {
+    id: generateId(),
+    sessionId: session.id,
+    nodeId,
+    turnIndex: turns.length,
+    speaker: 'user',
+    dialecticMode: mode,
+    content,
+    createdAt: new Date().toISOString(),
+  };
+
+  useSemanticStore.getState().addDialogueTurn(turn);
+  return turn;
+}
+
+/**
+ * Generate an AI dialogue response.
+ */
+export async function generateDialogueResponse(
+  nodeId: string,
+  mode: DialecticMode,
+): Promise<DialogueTurn> {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('No active session');
+
+  const { nodes, edges } = useSemanticStore.getState();
+  const turns = useSemanticStore.getState().getDialogueTurnsByNode(nodeId);
+  const challengeDepth = useSessionStore.getState().challengeDepth;
+
+  // Apply defensive user detection
+  const effectiveDepth = detectDefensiveUser(turns)
+    ? backOffDepth(challengeDepth)
+    : challengeDepth;
+
+  // Compile context
+  const context = compileContext(nodeId, nodes, edges);
+
+  // Build dialogue prompt
+  const prompt = buildDialoguePrompt(mode, turns, context, effectiveDepth);
+
+  // Get provider
+  const settings = await loadSettings();
+  const provider = getProvider(settings.geminiApiKey ?? '');
+
+  // Generate with streaming
+  const streamKey = `dialogue-${nodeId}`;
+  const raw = await provider.generateStream(prompt, (chunk) => {
+    useViewStore.getState().appendStream(streamKey, chunk);
+  });
+  useViewStore.getState().clearStream(streamKey);
+
+  // Parse response
+  const result = parseAndValidate('dialogue_turn', raw);
+  if (!result.success) {
+    throw new Error(result.error ?? 'Failed to parse dialogue response');
+  }
+
+  const data = result.data as {
+    content: string;
+    turnType: string;
+    suggestedResponses?: Array<{ text: string; intent: string }>;
+  };
+
+  const aiTurn: DialogueTurn = {
+    id: generateId(),
+    sessionId: session.id,
+    nodeId,
+    turnIndex: turns.length,
+    speaker: 'ai',
+    dialecticMode: mode,
+    turnType: data.turnType as DialogueTurn['turnType'],
+    content: data.content,
+    suggestedResponses: data.suggestedResponses as DialogueTurn['suggestedResponses'],
+    createdAt: new Date().toISOString(),
+  };
+
+  useSemanticStore.getState().addDialogueTurn(aiTurn);
+  return aiTurn;
+}
+
+/**
+ * Conclude dialogue and synthesize an enriched answer for the node.
+ */
+export async function concludeDialogue(nodeId: string): Promise<void> {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('No active session');
+
+  const node = useSemanticStore.getState().getNode(nodeId);
+  if (!node?.answer) throw new Error('Node has no answer to enrich');
+
+  const { nodes, edges } = useSemanticStore.getState();
+  const turns = useSemanticStore.getState().getDialogueTurnsByNode(nodeId);
+  if (turns.length === 0) throw new Error('No dialogue turns to synthesize');
+
+  const context = compileContext(nodeId, nodes, edges);
+  const prompt = buildConcludeSynthesisPrompt(turns, context, node.answer);
+
+  const settings = await loadSettings();
+  const provider = getProvider(settings.geminiApiKey ?? '');
+  const raw = await provider.generate(prompt);
+
+  const result = parseAndValidate('answer', raw);
+  if (!result.success) {
+    throw new Error(result.error ?? 'Failed to parse synthesis');
+  }
+
+  const enrichedAnswer = result.data as { summary: string; bullets: string[] };
+
+  // Update the node's answer with enriched version
+  useSemanticStore.getState().updateNode(nodeId, {
+    answer: enrichedAnswer,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Detect defensive user patterns: last 3 responses all < 20 words
+ * with defensive markers.
+ */
+function detectDefensiveUser(turns: DialogueTurn[]): boolean {
+  const userTurns = turns.filter((t) => t.speaker === 'user');
+  if (userTurns.length < 3) return false;
+
+  const lastThree = userTurns.slice(-3);
+  const defensiveMarkers = [
+    'i already said',
+    'like i mentioned',
+    'as i stated',
+    'i told you',
+    'already explained',
+  ];
+
+  return lastThree.every((t) => {
+    const words = t.content.trim().split(/\s+/).length;
+    const lower = t.content.toLowerCase();
+    return words < 20 && defensiveMarkers.some((m) => lower.includes(m));
+  });
+}
+
+/**
+ * Back off challenge depth by one level.
+ */
+function backOffDepth(depth: ChallengeDepth): ChallengeDepth {
+  switch (depth) {
+    case 'intense':
+      return 'balanced';
+    case 'balanced':
+      return 'gentle';
+    case 'gentle':
+      return 'gentle';
+  }
+}

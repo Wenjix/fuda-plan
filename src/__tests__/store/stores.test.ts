@@ -190,6 +190,7 @@ describe('semantic-store', () => {
       promotions: newPromotions,
       lanePlans: [],
       unifiedPlan: null,
+      dialogueTurns: [],
     });
 
     expect(useSemanticStore.getState().nodes).toEqual(newNodes);

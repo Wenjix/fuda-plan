@@ -350,6 +350,7 @@ describe('Phase 0 Integration', () => {
       promotions,
       lanePlans: [],
       unifiedPlan: null,
+      dialogueTurns: [],
     });
 
     const state = useSemanticStore.getState();

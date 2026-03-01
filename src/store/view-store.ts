@@ -13,6 +13,7 @@ interface ViewState {
   viewNodes: Map<string, ViewNodeState>;
   activeNodeId: string | null;
   streamBuffers: Map<string, string>;
+  dialoguePanelNodeId: string | null;
 
   setActiveNode: (id: string | null) => void;
   setViewNode: (id: string, state: ViewNodeState) => void;
@@ -20,6 +21,8 @@ interface ViewState {
   toggleCollapse: (id: string) => void;
   appendStream: (nodeId: string, chunk: string) => void;
   clearStream: (nodeId: string) => void;
+  openDialoguePanel: (nodeId: string) => void;
+  closeDialoguePanel: () => void;
   clear: () => void;
 }
 
@@ -27,6 +30,7 @@ export const useViewStore = create<ViewState>()((set) => ({
   viewNodes: new Map(),
   activeNodeId: null,
   streamBuffers: new Map(),
+  dialoguePanelNodeId: null,
 
   setActiveNode: (id) => set({ activeNodeId: id }),
   setViewNode: (id, state) => set((s) => {
@@ -59,5 +63,7 @@ export const useViewStore = create<ViewState>()((set) => ({
     next.delete(nodeId);
     return { streamBuffers: next };
   }),
-  clear: () => set({ viewNodes: new Map(), activeNodeId: null, streamBuffers: new Map() }),
+  openDialoguePanel: (nodeId) => set({ dialoguePanelNodeId: nodeId }),
+  closeDialoguePanel: () => set({ dialoguePanelNodeId: null }),
+  clear: () => set({ viewNodes: new Map(), activeNodeId: null, streamBuffers: new Map(), dialoguePanelNodeId: null }),
 }));

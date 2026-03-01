@@ -174,10 +174,12 @@ describe('buildPrompt', () => {
     expect(result).toContain('"branches"')
   })
 
-  it('dispatches dialogue_turn to answer builder (phase 2 placeholder)', () => {
+  it('dispatches dialogue_turn to dialogue prompt builder', () => {
     const result = buildPrompt('dialogue_turn', mockContext, mockSession)
-    // dialogue_turn currently uses buildAnswerPrompt as placeholder
-    expect(result).toContain('thorough answer')
+    // dialogue_turn uses buildDialoguePrompt with socratic defaults
+    expect(result).toContain('[SYSTEM]')
+    expect(result).toContain('[DIALOGUE HISTORY]')
+    expect(result).toContain('ONLY ask questions')
   })
 
   it('dispatches lane_plan to answer builder with planner preamble', () => {

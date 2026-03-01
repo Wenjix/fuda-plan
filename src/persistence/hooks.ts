@@ -12,7 +12,7 @@ export async function saveSession(): Promise<void> {
   const session = useSessionStore.getState().session;
   if (!session) return;
 
-  const { nodes, edges, promotions, lanePlans, unifiedPlan } = useSemanticStore.getState();
+  const { nodes, edges, promotions, lanePlans, unifiedPlan, dialogueTurns } = useSemanticStore.getState();
 
   // Save session
   await putEntity('sessions', session);
@@ -24,6 +24,7 @@ export async function saveSession(): Promise<void> {
     ...promotions.map(p => putEntity('promotions', p)),
     ...lanePlans.map(lp => putEntity('lanePlans', lp)),
     ...(unifiedPlan ? [putEntity('unifiedPlans', unifiedPlan)] : []),
+    ...dialogueTurns.map(dt => putEntity('dialogueTurns', dt)),
   ]);
 }
 
@@ -71,6 +72,7 @@ export async function restoreSession(sessionId: string): Promise<boolean> {
       promotions: envelope.promotions,
       lanePlans: envelope.lanePlans,
       unifiedPlan: envelope.unifiedPlans[0] ?? null,
+      dialogueTurns: envelope.dialogueTurns,
     });
 
     return true;

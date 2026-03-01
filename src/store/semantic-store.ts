@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SemanticNode, SemanticEdge, Promotion, LanePlan, UnifiedPlan } from '../core/types';
+import type { SemanticNode, SemanticEdge, Promotion, LanePlan, UnifiedPlan, DialogueTurn } from '../core/types';
 
 interface SemanticState {
   nodes: SemanticNode[];
@@ -7,6 +7,7 @@ interface SemanticState {
   promotions: Promotion[];
   lanePlans: LanePlan[];
   unifiedPlan: UnifiedPlan | null;
+  dialogueTurns: DialogueTurn[];
 
   // Node CRUD
   addNode: (node: SemanticNode) => void;
@@ -24,6 +25,11 @@ interface SemanticState {
   addLanePlan: (plan: LanePlan) => void;
   setUnifiedPlan: (plan: UnifiedPlan | null) => void;
 
+  // Dialogue turns
+  addDialogueTurn: (turn: DialogueTurn) => void;
+  getDialogueTurnsByNode: (nodeId: string) => DialogueTurn[];
+  clearDialogueTurns: (nodeId: string) => void;
+
   // Bulk
   loadSession: (data: {
     nodes: SemanticNode[];
@@ -31,6 +37,7 @@ interface SemanticState {
     promotions: Promotion[];
     lanePlans: LanePlan[];
     unifiedPlan: UnifiedPlan | null;
+    dialogueTurns: DialogueTurn[];
   }) => void;
   clear: () => void;
 }
@@ -41,6 +48,7 @@ export const useSemanticStore = create<SemanticState>()((set, get) => ({
   promotions: [],
   lanePlans: [],
   unifiedPlan: null,
+  dialogueTurns: [],
 
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
   updateNode: (id, updates) => set((s) => ({
@@ -52,6 +60,11 @@ export const useSemanticStore = create<SemanticState>()((set, get) => ({
   removePromotion: (id) => set((s) => ({ promotions: s.promotions.filter((p) => p.id !== id) })),
   addLanePlan: (plan) => set((s) => ({ lanePlans: [...s.lanePlans, plan] })),
   setUnifiedPlan: (plan) => set({ unifiedPlan: plan }),
+  addDialogueTurn: (turn) => set((s) => ({ dialogueTurns: [...s.dialogueTurns, turn] })),
+  getDialogueTurnsByNode: (nodeId) => get().dialogueTurns.filter((t) => t.nodeId === nodeId),
+  clearDialogueTurns: (nodeId) => set((s) => ({
+    dialogueTurns: s.dialogueTurns.filter((t) => t.nodeId !== nodeId),
+  })),
   loadSession: (data) => set(data),
-  clear: () => set({ nodes: [], edges: [], promotions: [], lanePlans: [], unifiedPlan: null }),
+  clear: () => set({ nodes: [], edges: [], promotions: [], lanePlans: [], unifiedPlan: null, dialogueTurns: [] }),
 }));

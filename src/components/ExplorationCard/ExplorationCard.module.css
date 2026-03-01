@@ -96,6 +96,22 @@
   color: #e0e0e0;
 }
 
+.discussBtn {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #7b4fbf;
+  background: transparent;
+  color: #c0a0ff;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.15s;
+}
+
+.discussBtn:hover {
+  background: #1a1a3a;
+  border-color: #9a6fdf;
+}
+
 .handle {
   width: 8px;
   height: 8px;

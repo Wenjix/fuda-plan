@@ -13,6 +13,7 @@ type ExplorationCardNodeType = Node<SemanticNode, 'explorationCard'>;
 export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>) {
   const node = data;
   const streamBuffer = useViewStore(s => s.streamBuffers.get(id) ?? '');
+  const openDialoguePanel = useViewStore(s => s.openDialoguePanel);
   const isStreaming = node.fsmState === 'generating';
 
   const handleAnswer = () => {
@@ -77,6 +78,11 @@ export function ExplorationCard({ data, id }: NodeProps<ExplorationCardNodeType>
             <button onClick={() => handleBranch('challenge')}>Challenge</button>
             <button onClick={() => handleBranch('connect')}>Connect</button>
           </div>
+        )}
+        {node.fsmState === 'resolved' && (
+          <button className={styles.discussBtn} onClick={() => openDialoguePanel(id)}>
+            Discuss
+          </button>
         )}
       </div>
 
