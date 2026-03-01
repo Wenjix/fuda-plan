@@ -29,6 +29,99 @@ A solo user opens FUDA Plan, types a topic (e.g., "Should we migrate from monoli
 | Testing | Vitest + @testing-library/react | latest |
 | Linting | ESLint + Prettier | latest |
 
+### Decision Log
+
+Each entry justifies the chosen technology against alternatives considered.
+
+#### State Management: Zustand
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Zustand** (chosen) | Selector-based subscriptions prevent cross-store re-render cascades. Store splitting is trivial. No providers needed. | Less mature devtools than Redux. | **Chosen:** 3 data domains at different update frequencies (view 60fps, semantic seconds, session static). Zustand's store splitting maps cleanly to these. |
+| Redux Toolkit | Mature devtools, entity adapters, large ecosystem. | Single dispatch queue: canvas drags compete with LLM events. More boilerplate ceremony. | Overengineered for single-user client app. |
+| Jotai | Fine-grained reactivity per atom. | Atom-per-node model: staleness propagation triggers N individual reconciliations instead of batch update. | Poor fit for batch graph operations like staleness propagation. |
+| Valtio | Proxy mutation feels natural and imperative. | Proxies break with IndexedDB's `structuredClone`. React 19 concurrent mode edge cases with proxy tracking. | Risky for the persistence layer which relies on structuredClone. |
+
+#### Persistence: IndexedDB via `idb`
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **IndexedDB/idb** (chosen) | Async, multi-MB capacity, indexed object stores, transactional with atomic rollback. | Verbose API, no SQL, manual schema migrations. | **Chosen:** Access pattern is load-full-session + update-one-entity. IndexedDB's transactional guarantees prevent mid-write corruption. |
+| localStorage | Simplest API, synchronous reads. | 5MB limit, synchronous writes block during streaming, no transactions. | **Disqualified:** Sessions with 100+ nodes easily exceed 5MB. Synchronous writes would stall the UI during LLM streaming. |
+| sql.js / wa-sqlite | Full SQL support, FTS5 for search, powerful queries. | 1MB+ WASM initialization payload, serialization complexity, cold-start latency. | Overkill: all filtering happens in-memory in Zustand stores. No complex queries needed. |
+
+#### Canvas: @xyflow/react
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **@xyflow/react** (chosen) | Custom React node components (render rich cards), pan/zoom/drag built-in, minimap, `onlyRenderVisibleElements` for performance. | Opinionated data shapes for nodes/edges. | **Chosen:** ExplorationCard and PlanCard slot in directly as custom node types. |
+| d3-force | Maximum layout flexibility, force-directed graph algorithms. | SVG-only rendering — cannot embed React components inside nodes. | Cannot render rich card content with interactive buttons, dialogue panels, etc. |
+| Cytoscape.js | Mature graph algorithms library, good for analysis. | HTML Canvas rendering — no React components inside nodes. | Same React component limitation as d3. Rich node content is a core requirement. |
+
+#### LLM Provider: Gemini 2.0-flash
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Gemini flash** (chosen) | Free tier available, CORS-friendly (direct browser-to-API calls), SSE streaming, 1M token context window. | Client-side key exposure risk (mitigated by user-provided key). | **Chosen:** Only major LLM API that supports direct browser calls without a server proxy. This is the enabling constraint for the no-backend architecture. |
+| Claude (Anthropic) | Superior structured output, excellent dialectic reasoning. | CORS restrictions — requires server proxy for browser-to-API calls. | **Blocked:** Violates the no-backend constraint. Candidate for Phase 8 with backend. |
+| GPT-4o (OpenAI) | Strong JSON mode, wide ecosystem. | Same CORS blocker as Claude — requires server proxy. | **Blocked:** Same no-backend constraint. Candidate for Phase 8. |
+| Local (Ollama/WebLLM) | No API key needed, works offline, full privacy. | Quality insufficient for complex structured JSON output (StructuredPlan, ConflictResolution). Model size vs. quality tradeoff. | Not viable for plan schemas requiring reliable structured output. |
+
+#### Synthesis: Map-Reduce vs Alternatives
+
+| Approach | LLM Calls | Ordering Bias | Conflict Traceability | Decision |
+|----------|-----------|---------------|----------------------|----------|
+| **Pairwise map-reduce** (chosen) | 8 (6 map + 1 reduce + 1 format, map calls parallelizable) | None — every pair compared symmetrically | Full — each ConflictResolution record traces to specific lane pair | **Chosen:** Core value prop of FUDA Plan is traceability. Every conflict resolution is auditable. |
+| Round-table (all plans at once) | 1 | None | Low — no intermediate artifacts, conflicts are inferred not extracted | Faster but sacrifices the provenance that makes the tool trustworthy. |
+| Sequential merge (A+B then AB+C then ABC+D) | 3 | High — first plan anchors the merged result, later plans get compressed | Medium — merge artifacts exist but first plan is privileged | Ordering determines outcome. Privileges whichever lane is first. |
+| Tournament bracket (A vs B, C vs D, winner vs winner) | 3 | Medium — bracket position matters | Medium — misses direct A-C and B-D comparisons | Loses cross-bracket conflict detection entirely. |
+
+#### Validation: Zod
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Zod** (chosen) | `z.infer<typeof Schema>` eliminates type duplication. Single source of truth for runtime + compile-time types. Rich error messages. | Slightly larger bundle than alternatives. | **Chosen:** Type duplication was a major bug source in v1. Zod's infer pattern eliminates the entire class. |
+| io-ts | Functional composition, Haskell-inspired. | No `infer` equivalent — must maintain separate TypeScript interfaces. Steep learning curve. | Type duplication defeats the purpose. |
+| ArkType | Fastest validation, good inference. | Newer, smaller community, API still evolving. | Too immature for a specification-driven project. |
+| TypeBox | JSON Schema compatible, fast. | Inference support weaker than Zod's. Designed for server-side validation. | Less ergonomic for client-side development patterns. |
+
+#### Build Tool: Vite
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Vite** (chosen) | Sub-second HMR, native ESM dev server, Rollup-based production build, first-class React support. | Less mature plugin ecosystem than webpack. | **Chosen:** Pure SPA with no SSR — Vite's strengths perfectly match. |
+| Next.js | SSR, file-system routing, server components. | FUDA Plan is a pure client-side app with no server. Next.js adds server complexity we explicitly don't want. | Overengineered for client-only architecture. |
+| Remix | Nested routes, loader/action pattern. | Same server-dependency issue as Next.js. | Same objection — no backend is a core constraint. |
+| Parcel | Zero-config bundler. | Less predictable for production optimization. Smaller ecosystem for React. | Vite's explicit config is actually an advantage for a specification-driven project. |
+
+#### CSS: CSS Modules
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **CSS Modules** (chosen) | Zero-runtime overhead (critical for canvas at 60fps), scoped class names, standard CSS features, works with Vite out of the box. | No dynamic styling without CSS custom properties. | **Chosen:** Canvas performance is critical — 100+ nodes must render smoothly during pan/zoom. Zero runtime cost is non-negotiable. |
+| Tailwind CSS | Rapid prototyping, consistent design tokens. | Utility classes in JSX reduce readability for complex components. Build-time overhead. | Acceptable alternative, but CSS Modules better for component isolation in canvas context. |
+| styled-components | Dynamic theming, CSS-in-JS colocation. | Runtime CSS generation during React Flow pan/zoom creates jank. React 19 SSR issues. | Runtime overhead disqualifies it for canvas-heavy rendering. |
+| vanilla-extract | Type-safe CSS, zero runtime. | Build-time extraction complexity. Less intuitive for team onboarding. | Good alternative, but CSS Modules are simpler and more widely understood. |
+
+#### Store Architecture: 3+1 Stores
+
+| Store | Update Frequency | Data | Persisted? |
+|-------|-----------------|------|-----------|
+| `semantic-store` | Seconds (on LLM response) | Nodes, edges, promotions, plans | Yes |
+| `view-store` | 60fps (canvas drag/zoom) | Positions, collapse state, UI mode | Yes |
+| `session-store` | Rare (topic change, mode switch) | Session metadata, active lane, challenge depth | Yes |
+| `job-store` | Seconds (job lifecycle) | Generation job queue, status, errors | No (ephemeral) |
+
+Justification: Different update frequencies prevent high-frequency view updates (60fps canvas interactions) from triggering re-renders in components subscribed to low-frequency semantic data. The job store is ephemeral because jobs are transient — they complete or fail within seconds and don't need to survive page refresh.
+
+#### Token Budget Strategy: Greedy Priority Packing (v1)
+
+| Approach | Pros | Cons | Decision |
+|----------|------|------|----------|
+| **Greedy priority packing** (chosen) | Simple, deterministic, testable. Ancestors first, then siblings, then cousins. | Doesn't adapt budget per job type (answers need more context than branches). | **Chosen for v1:** Predictable behavior, easy to debug. |
+| Per-job-type dynamic allocation | Answers get 60% context, branches get 40%. Optimizes relevance. | More complex, harder to test, needs tuning per job type. | Documented as v2 enhancement path. |
+| Embedding-based relevance ranking | Most relevant content regardless of graph position. | Requires embedding model client-side. Adds latency and complexity. | Not viable without backend. |
+
 ### What This Is Not (v1 Non-Goals)
 
 - No backend services, API gateway, or job queue
@@ -46,7 +139,7 @@ A solo user opens FUDA Plan, types a topic (e.g., "Should we migrate from monoli
 ```
 Layer 5: Persistence          IndexedDB via idb, Zod-validated envelopes
 Layer 4: UI Components        React 19, React Flow, CSS Modules
-Layer 3: State Management     Zustand split stores (semantic, view, session)
+Layer 3: State Management     Zustand split stores (semantic, view, session + ephemeral job store)
 Layer 2: Generation Pipeline  Context Compiler -> Prompt Builder -> Provider -> Parser -> Quality Gates
 Layer 1: Domain Core          Zod schemas, FSMs, graph traversal, pure functions (no React)
 ```
@@ -108,7 +201,7 @@ fuda-plan/
         lane-plan.ts              # Lane plan synthesis prompts
         unified-plan.ts           # Map-reduce synthesis prompts
         index.ts                  # Prompt builder entry point
-      personas.ts                 # 4 exploration personas + planner
+      personas.ts                 # 4 exploration personas + planner (see Persona System Prompts below)
       pipeline.ts                 # Unified generate() with middleware hooks
 
     store/                        # Layer 3: State Management
@@ -199,6 +292,91 @@ fuda-plan/
         full-flow.test.ts
 ```
 
+### Persona System Prompts
+
+These are the actual system prompt strings used in `src/generation/personas.ts`. Each persona is a complete instruction set — not just a description but the full prompt text injected at the system level for every LLM call within that lane.
+
+**Expansive Persona:**
+```
+You are the Expansive Planner. Your role is to think big-picture: long-term vision,
+philosophical implications, creative reframings, and connections across domains. You
+see possibilities where others see constraints.
+
+Style: Imaginative, wide-ranging, future-oriented. Use analogies from other fields.
+Ask "what if?" frequently. Embrace uncertainty as creative space.
+
+Anti-patterns to avoid:
+- Never be generic. "Think outside the box" is not a useful instruction.
+- Never ignore practical constraints entirely — acknowledge them, then transcend them.
+- Never repeat the user's framing without adding a new angle.
+- Never start with "That's a great question!" or similar filler.
+```
+
+**Analytical Persona:**
+```
+You are the Analytical Planner. Your role is to decompose problems into components,
+identify logical dependencies, evaluate evidence quality, and build structured
+arguments. You value precision over inspiration.
+
+Style: Structured, logical, evidence-grounded. Use numbered lists, decision matrices,
+and explicit criteria. Quantify when possible. Flag logical fallacies.
+
+Anti-patterns to avoid:
+- Never present opinions as facts. Clearly distinguish "evidence suggests" from "I think."
+- Never skip showing your reasoning. Every conclusion needs a visible chain of logic.
+- Never produce vague recommendations. "Improve X" → "Reduce X from Y to Z by doing W."
+- Never start with "That's a great question!" or similar filler.
+```
+
+**Pragmatic Persona:**
+```
+You are the Pragmatic Planner. Your role is to evaluate ideas through the lens of
+real-world implementation: timelines, resources, team capacity, technical debt, and
+operational risk. You favor concrete steps over abstract principles.
+
+Style: Direct, specific, implementation-focused. Use numbers when possible. Reference
+industry precedents. Answer "what would it take?" and "what could go wrong?"
+
+Anti-patterns to avoid:
+- Never be vague. "Improve performance" → "Reduce p95 latency from 800ms to 200ms."
+- Never list generic best practices. Ground every point in the user's specific context.
+- Never ignore the human element — teams, skills, hiring, morale matter.
+- Never start with "That's a great question!" or similar filler.
+```
+
+**Socratic Persona:**
+```
+You are the Socratic Questioner. Your role is to surface hidden assumptions, reveal
+contradictions, and force the user to justify their reasoning. You never state
+opinions — you only ask questions.
+
+Style: Probing, precise, relentless. Each question should target a specific assumption
+or logical gap. Build questions that fork the conversation into revealing paths.
+
+Anti-patterns to avoid:
+- Never state your own position. You ask, you don't tell.
+- Never ask yes/no questions. Every question should require explanation.
+- Never ask vague questions. "What do you think about that?" is useless. Be specific.
+- Never start with "That's a great question!" or similar filler.
+```
+
+**Planner Persona** (used for lane plan and unified plan generation):
+```
+You are the Strategic Planner. Your role is to synthesize exploration insights into
+actionable, structured plans. You work with evidence — every claim in your plan must
+trace back to a specific exploration node.
+
+Style: Authoritative, structured, evidence-based. Use the provided StructuredPlan
+schema exactly. Every section must contain EvidenceRef citations. Be specific about
+timelines, owners, and success criteria.
+
+Anti-patterns to avoid:
+- Never make claims without evidence citations. If no evidence supports a point, say so.
+- Never produce vague milestones. "Launch MVP" → "Deploy auth service to staging by week 4."
+- Never ignore conflicts between lanes. Surface them explicitly in conflictsResolved.
+- Never start with "Here's my plan" or similar preamble. Return the JSON directly.
+```
+
 ### Data Flow Diagram
 
 ```
@@ -222,6 +400,53 @@ fuda-plan/
                         v
 [Persistence: debounced save to IndexedDB]
 ```
+
+### Canvas Layout
+
+```
++----------------------------------------------------------------------+
+|  FUDA Plan                               [Settings] [Export] [Sessions]|
++----------------------------------------------------------------------+
+|  Topic: "Should we migrate from monolith to microservices?"           |
++----------------------------------------------------------------------+
+|  [Expansive] [Analytical] [*Pragmatic*] [Socratic]  Challenge:[=bal] |
++----------------------------------------------------------------------+
+|  +-- Canvas (React Flow, pannable/zoomable) -----------------------+ |
+|  |              +--[ROOT]------------------+                       | |
+|  |              | Q: What are the specific |                       | |
+|  |              | pain points?             |                       | |
+|  |              | [Show Answer] [Discuss]  |                       | |
+|  |              | State: resolved [*]prom  |                       | |
+|  |              +--------+---------+-------+                       | |
+|  |                  |         |         |                          | |
+|  |           +------+    +----+----+  +-+----------+              | |
+|  |           v           v         v  v            v              | |
+|  |  +[CHILD 1]----+ +[CHILD 2]---+ +[CHILD 3]----+              | |
+|  |  | Q: Deploy   | | Q: What    | | Q: Bounded  |              | |
+|  |  | coupling?   | | would break| | contexts?   |              | |
+|  |  | [ShowAnswer]| | A: "The..." | [ShowAnswer] |              | |
+|  |  | State: idle | | State:resol| | State: idle |              | |
+|  |  +-------------+ | [Discuss]  | +-------------+              | |
+|  |                   +-----+-----+                               | |
+|  +---------------------------------------------------------------+ |
+|  +-- DialoguePanel (right side, when "Discuss" clicked) ---------+ |
+|  |  Mode: [Socratic] [Devil] [*Steelman*] [Collab]              | |
+|  |  AI: "Your concern about sessions is valid, but..."          | |
+|  |  Suggested: [But what about...] [Fair point] [New angle]     | |
+|  |  [Type response...]                                [Send]    | |
+|  |  [Conclude & Synthesize]                                     | |
+|  +---------------------------------------------------------------+ |
+|  Status: 2/4 lane plans | Session: exploring                      |
++----------------------------------------------------------------------+
+```
+
+**Layout notes:**
+- Canvas occupies ~75% of width when DialoguePanel is closed, ~55% when open
+- DialoguePanel slides in from the right, pushing canvas left (not overlaying)
+- Lane selector tabs are color-coded: purple (Expansive), blue (Analytical), green (Pragmatic), red (Socratic)
+- Active lane tab has bold text and underline; inactive tabs are dimmed
+- Promoted nodes show a gold star badge `[*]` next to their state indicator
+- Stale nodes show a yellow "Recalculate" badge replacing the state indicator
 
 ---
 
@@ -444,6 +669,20 @@ export type DialogueTurn = z.infer<typeof DialogueTurnSchema>;
 ```
 
 ### `src/core/types/promotion.ts`
+
+#### Why These Five Promotion Reasons
+
+The five reasons correspond to five independent dimensions of planning quality. Together they ensure promoted evidence covers the full spectrum, not clustering on one type:
+
+| Reason | Plan Quality Dimension | Without It... |
+|--------|----------------------|---------------|
+| `insightful_reframe` | Creativity | Plan is conventional — follows obvious paths only |
+| `actionable_detail` | Specificity | Plan is aspirational — says "improve X" without concrete steps |
+| `risk_identification` | Robustness | Plan is brittle — breaks on first contact with reality |
+| `assumption_challenge` | Validity | Plan is unfounded — built on unexamined premises |
+| `cross_domain_link` | Breadth | Plan is insular — misses connections to adjacent domains |
+
+A plan that has promoted evidence in all five categories is more likely to be creative, specific, robust, valid, and broad. The promotion modal enforces that users *think* about which dimension this node serves, rather than just star-marking "good" nodes.
 
 ```typescript
 import { z } from 'zod';
@@ -843,10 +1082,16 @@ export function getAncestorChain(
   index: AdjacencyIndex
 ): SemanticNode[] {
   const chain: SemanticNode[] = [];
+  const visited = new Set<string>(); // Cycle guard — see Edge Case 10b-10
   let current = targetId;
   while (true) {
     const parentId = index.parentOf.get(current);
     if (!parentId) break;
+    if (visited.has(parentId)) {
+      console.warn('Cycle detected in ancestor chain', { targetId, parentId });
+      break;
+    }
+    visited.add(parentId);
     const parent = nodes.get(parentId);
     if (!parent) break;
     chain.push(parent);
@@ -871,6 +1116,24 @@ export function getSiblings(
 }
 ```
 
+#### Why Ancestors > Siblings > Cousins
+
+An LLM generating a response for node N needs the *causal chain* that led to N. Ancestors form this chain — each ancestor's Q&A pair narrows the scope that N inhabits. Without ancestors, the LLM produces shallow, context-free answers that ignore the conversational trajectory.
+
+Siblings provide lateral awareness — they prevent repetition by showing what else was explored from the same parent. But sibling context is not load-bearing for coherence; it's supplementary.
+
+Cousins (children of parent's siblings) provide the weakest signal: breadth one level removed. Included only when budget permits, and only as question-only summaries (no answers) to conserve tokens.
+
+**Budget allocation table:**
+
+| Tier | Budget Share | Rationale |
+|------|------------|-----------|
+| Ancestors | 60% (2400 tokens) | Causal chain. Fits full chain up to depth 6 with typical answer lengths. |
+| Siblings | 30% (1200 tokens) | Anti-repetition. Fits 3-4 sibling summaries at ~300 tokens each. |
+| Cousins | 10% (400 tokens) | Breadth signal. Truncated to question-only. |
+
+Surplus from an under-filled tier rolls forward to the next tier. The root node is always included regardless of budget (reserves 300 tokens) because it establishes the entire topic frame.
+
 `src/core/graph/context-compiler.ts`:
 
 ```typescript
@@ -878,6 +1141,17 @@ import type { SemanticNode, SemanticEdge, CompiledContext, ContextEntry } from '
 import { buildAdjacencyIndex, getAncestorChain, getSiblings } from './traversal';
 
 const DEFAULT_TOKEN_BUDGET = 4000;
+// Why 4000 tokens:
+// (1) Larger context degrades response quality by diluting relevance — LLMs perform
+//     better with focused context than with everything-and-the-kitchen-sink.
+// (2) Longer prompts increase latency and cost proportionally.
+// (3) 4000 context + ~2000 system prompt + ~2000 output target = ~8000 total per call,
+//     well within Gemini's 1M window while keeping response times under 3-5 seconds.
+//
+// Deep tree handling (depth > 6): nearest ancestors are prioritized. Root is always
+// included (300 token reserve). Middle ancestors may be dropped to fit budget, with
+// a "[N ancestors omitted]" marker in the formatted context.
+
 const CHARS_PER_TOKEN_ESTIMATE = 4;
 
 function estimateTokens(text: string): number {
@@ -937,7 +1211,33 @@ export function compileContext(
     usedTokens += tokens;
   }
 
-  // 3. Format into prompt string
+  // 3. Cousins (lowest priority) -- question-only, if budget remains
+  const parentId = index.parentOf.get(targetNodeId);
+  if (parentId) {
+    const parentSiblingIds = getSiblings(parentId, nodeMap, index)
+      .map(s => s.id);
+    for (const psId of parentSiblingIds) {
+      const cousinIds = index.childrenOf.get(psId) ?? [];
+      for (const cousinId of cousinIds) {
+        const cousin = nodeMap.get(cousinId);
+        if (!cousin) continue;
+        // Cousins get question-only (no answer) to conserve budget
+        const content = cousin.question;
+        const tokens = estimateTokens(content);
+        if (usedTokens + tokens > tokenBudget) break;
+        entries.push({
+          nodeId: cousin.id,
+          role: 'cousin',
+          distanceFromTarget: 2,
+          content,
+          tokenEstimate: tokens,
+        });
+        usedTokens += tokens;
+      }
+    }
+  }
+
+  // 4. Format into prompt string
   const formatted = formatContextForPrompt(entries, targetNodeId, nodeMap);
 
   return {
@@ -971,12 +1271,129 @@ function formatContextForPrompt(
     lines.push(`- Sibling (${stateLabel}): "${entry.content.substring(0, 150)}"`);
   }
 
+  const cousins = entries.filter(e => e.role === 'cousin');
+  if (cousins.length > 0) {
+    for (const entry of cousins) {
+      lines.push(`- Cousin (question only): "${entry.content.substring(0, 100)}"`);
+    }
+  }
+
   const target = nodeMap.get(targetNodeId);
   if (target) {
     lines.push(`- Current Node: "${target.question}"`);
   }
 
   return lines.join('\n');
+}
+```
+
+#### Full Compiled Context Prompt Example
+
+This is the complete prompt string sent to Gemini for an `answer` job on a depth-2 node in the Pragmatic lane. It shows how the context compiler output, persona preamble, and task instruction compose together:
+
+```
+[SYSTEM]
+You are the Pragmatic Planner. Your role is to evaluate ideas through the lens of
+real-world implementation: timelines, resources, team capacity, technical debt, and
+operational risk. You favor concrete steps over abstract principles. When you lack
+data, say so — never fill gaps with platitudes.
+
+Style: Direct, specific, evidence-grounded. Use numbers when possible. Reference
+industry precedents. Never say "it depends" without specifying what it depends on.
+
+Anti-patterns to avoid:
+- Never be vague. "Improve performance" → "Reduce p95 latency from 800ms to 200ms."
+- Never list generic best practices. Ground every point in the user's specific context.
+- Never start with "Great question!" or other filler.
+
+[GRAPH CONTEXT]
+- Root (depth 2): "What are the specific deployment pain points that make microservices attractive?"
+  → "Three teams share one release train, causing 2-3 week deployment queues. Feature
+  branches average 14 days, leading to merge conflicts that consume 20% of sprint capacity."
+- Ancestor (depth 1): "How would you handle distributed transactions for operations
+  currently using a single database transaction?"
+  → "Saga pattern with compensating transactions for the order flow. Event sourcing for
+  the inventory service. Accept eventual consistency with a 5-second SLA."
+- Sibling (Explored): "What bounded contexts have the most independent data models?"
+- Sibling (Unexplored): "What parallels exist with Netflix's decomposition?"
+- Current Node: "What specific monitoring and observability infrastructure would you
+  need before extracting the first microservice?"
+
+[TASK]
+Generate a thorough answer to the Current Node's question. Consider the full context
+of the exploration so far. Your answer should be specific to the user's situation,
+not generic advice.
+
+Return JSON matching this exact schema:
+{
+  "summary": "A 1-2 sentence synthesis (max 200 chars)",
+  "bullets": ["3-8 specific points, each a complete thought"]
+}
+
+Ensure JSON is valid and complete. Do not include markdown formatting or code fences.
+```
+
+### 5c-ii. Quality Gates Specification
+
+`src/core/validation/quality-gates.ts`
+
+Quality gates target three independent failure modes of LLM-generated follow-up questions. They run client-side on every `branch` response before the questions are accepted into the graph.
+
+#### Gate 1: Specificity
+
+Guards against vagueness ("What are the implications?" or "Tell me more about that.").
+
+**Metric:** `(named_entities + domain_terms) / min(total_words, 50)` where named entities are capitalized multi-word phrases and domain terms are nouns that appeared in the parent node's content.
+
+**Threshold:** >= 0.3. Below 0.3, questions empirically reduce to generic "tell me more" variants that don't advance exploration.
+
+**Implementation:** Split on whitespace, count terms matching parent content or containing uppercase letters. Cap denominator at 50 to prevent long questions from diluting the ratio.
+
+#### Gate 2: Uniqueness
+
+Guards against repetition (generating the same question with slightly different wording).
+
+**Metric:** Jaccard similarity of word bigrams against each existing sibling question. `J(A,B) = |A ∩ B| / |A ∪ B|` where A and B are sets of consecutive word pairs.
+
+**Threshold:** Jaccard < 0.6 against every sibling. Above 0.6, questions are too similar to add value.
+
+**Why Jaccard over cosine similarity:** Runs entirely client-side with no embedding model. Bigram Jaccard is simple, fast, and surprisingly effective for detecting paraphrases of short questions.
+
+#### Gate 3: Branchability
+
+Guards against dead-end questions (yes/no questions that terminate exploration).
+
+**Metric:** Heuristic score based on question structure. Open-ended starters (how, why, what if, in what ways, what would) score 1.0. Closed-form starters (is it, does it, can you, will it, has it) score 0.0. Mixed forms score 0.5. Final score is the average across detected patterns.
+
+**Threshold:** >= 0.5. Below 0.5, the question is likely to produce a one-sentence answer with no natural follow-up paths.
+
+**Why not LLM-scored:** Gates run per question (3-6 per branch response). An LLM call per question would triple latency for quality checking. The heuristic is fast and catches the most common failure mode (yes/no questions).
+
+#### Retry Strategy
+
+- Up to 2 retries per gate failure. Each retry appends the specific gate failure reason to the prompt (e.g., "The previous question was too vague. Generate a more specific question that references concrete entities.").
+- **Multi-gate failure:** When multiple gates fail simultaneously, use the lowest-scoring gate's feedback for the retry instruction.
+- **Exhausted retries:** After 2 failed retries, accept the question with a low-confidence visual badge (dimmed border, "?" icon). The user can still explore it, but it signals the system's uncertainty.
+
+```typescript
+export interface QualityGateResult {
+  passed: boolean;
+  gate: 'specificity' | 'uniqueness' | 'branchability';
+  score: number;
+  threshold: number;
+  feedback: string; // Human-readable reason, appended to retry prompt
+}
+
+export function runQualityGates(
+  question: string,
+  siblingQuestions: string[],
+  parentContent: string
+): QualityGateResult[] {
+  return [
+    checkSpecificity(question, parentContent),
+    checkUniqueness(question, siblingQuestions),
+    checkBranchability(question),
+  ];
 }
 ```
 
@@ -1042,6 +1459,74 @@ export const DB_VERSION = 1;
 
 `src/persistence/repository.ts` will use `idb`'s `openDB` to create/open the database and provide typed CRUD operations. Every read from IndexedDB passes through the corresponding Zod schema before entering the store; every write validates with Zod before persisting.
 
+#### IndexedDB Data Example
+
+A realistic snapshot of all 9 object stores for a session with 4 nodes, 3 edges, 1 promotion, and 1 completed job:
+
+```
+sessions store:
+  "sess-001" → {
+    id: "sess-001", topic: "Should we migrate from monolith to microservices?",
+    createdAt: "2025-01-15T10:00:00Z", updatedAt: "2025-01-15T10:45:00Z",
+    challengeDepth: "balanced", activeLaneId: "lane-prag", status: "exploring",
+    version: "fuda_v1"
+  }
+
+lanes store:
+  "lane-expn" → { id: "lane-expn", sessionId: "sess-001", label: "Expansive",
+                   personaId: "expansive", colorToken: "#7B4FBF", sortOrder: 0, ... }
+  "lane-anlt" → { id: "lane-anlt", sessionId: "sess-001", label: "Analytical",
+                   personaId: "analytical", colorToken: "#4A90D9", sortOrder: 1, ... }
+  "lane-prag" → { id: "lane-prag", sessionId: "sess-001", label: "Pragmatic",
+                   personaId: "pragmatic", colorToken: "#3DAA6D", sortOrder: 2, ... }
+  "lane-socr" → { id: "lane-socr", sessionId: "sess-001", label: "Socratic",
+                   personaId: "socratic", colorToken: "#D94F4F", sortOrder: 3, ... }
+
+nodes store:
+  "node-001" → { id: "node-001", sessionId: "sess-001", laneId: "lane-prag",
+                  parentId: null, nodeType: "root", pathType: "go-deeper",
+                  question: "What are the specific deployment pain points that make microservices attractive?",
+                  answer: { summary: "Three teams share one release train...", bullets: [...] },
+                  fsmState: "resolved", promoted: true, depth: 0, ... }
+  "node-002" → { id: "node-002", sessionId: "sess-001", laneId: "lane-prag",
+                  parentId: "node-001", nodeType: "exploration", pathType: "go-deeper",
+                  question: "What bounded contexts have the most independent data models?",
+                  answer: null, fsmState: "idle", promoted: false, depth: 1, ... }
+  "node-003" → { id: "node-003", sessionId: "sess-001", laneId: "lane-prag",
+                  parentId: "node-001", nodeType: "exploration", pathType: "challenge",
+                  question: "How would you handle distributed transactions?",
+                  answer: { summary: "Saga pattern with compensating transactions...", bullets: [...] },
+                  fsmState: "resolved", promoted: false, depth: 1, ... }
+  "node-004" → { id: "node-004", sessionId: "sess-001", laneId: "lane-prag",
+                  parentId: "node-001", nodeType: "exploration", pathType: "connect",
+                  question: "What parallels exist with Netflix's decomposition?",
+                  answer: null, fsmState: "idle", promoted: false, depth: 1, ... }
+
+edges store:
+  "edge-001" → { id: "edge-001", sessionId: "sess-001", laneId: "lane-prag",
+                  sourceNodeId: "node-001", targetNodeId: "node-002", ... }
+  "edge-002" → { id: "edge-002", sessionId: "sess-001", laneId: "lane-prag",
+                  sourceNodeId: "node-001", targetNodeId: "node-003", ... }
+  "edge-003" → { id: "edge-003", sessionId: "sess-001", laneId: "lane-prag",
+                  sourceNodeId: "node-001", targetNodeId: "node-004", ... }
+
+promotions store:
+  "promo-001" → { id: "promo-001", sessionId: "sess-001", laneId: "lane-prag",
+                   nodeId: "node-001", reason: "risk_identification",
+                   note: "Key insight about deployment coupling", ... }
+
+lanePlans store:  (empty — no lane plans generated yet)
+unifiedPlans store:  (empty)
+
+dialogueTurns store:  (empty — no dialogue started)
+
+jobs store:
+  "job-001" → { id: "job-001", sessionId: "sess-001", targetNodeId: "node-003",
+                 jobType: "answer", fsmState: "succeeded", attempts: 1, maxAttempts: 3,
+                 idempotencyKey: "answer:node-003:1", error: undefined,
+                 createdAt: "2025-01-15T10:30:00Z", resolvedAt: "2025-01-15T10:30:04Z" }
+```
+
 ### 5e. Testing Harness
 
 - Configure Vitest in `vitest.config.ts` with `environment: 'node'` for `src/core/**` tests
@@ -1068,7 +1553,7 @@ export const DB_VERSION = 1;
 
 ### 6a. Store Setup
 
-Split Zustand into three stores:
+Split Zustand into three persisted stores plus one ephemeral store (3+1 architecture — see Decision Log: Store Architecture for rationale):
 
 `src/store/semantic-store.ts` -- Holds `SemanticNode[]`, `SemanticEdge[]`, `Promotion[]`, `LanePlan[]`, `UnifiedPlan | null`. No view/position data.
 
@@ -1086,6 +1571,8 @@ interface ViewNodeState {
 Also holds `activeNodeId`, React Flow `onNodesChange`/`onEdgesChange` handlers.
 
 `src/store/session-store.ts` -- Holds `PlanningSession | null`, `activeLaneId`, `challengeDepth`, `uiMode` ('topic_input' | 'compass' | 'exploring').
+
+`src/store/job-store.ts` -- **Ephemeral (not persisted to IDB).** Holds `GenerationJob[]` with status tracking, concurrency control, and rate limiting state. Jobs are transient — they complete or fail within seconds and don't need to survive page refresh. On reload, any in-flight jobs are simply lost; the user can retry from the node's `failed` state.
 
 ### 6b. View Projection
 
@@ -1186,13 +1673,143 @@ export async function generate(options: GenerateOptions): Promise<unknown> {
 }
 ```
 
+#### LLM Response JSON Examples by Job Type
+
+Each job type expects a specific JSON shape from the LLM. The `dialogue_turn` example is shown in Phase 2; here are the remaining 5:
+
+**`answer` response** (for generating a node's answer content):
+```json
+{
+  "summary": "Migrating from a monolith to microservices reduces deployment coupling but introduces distributed-system complexity that most teams underestimate by 2-3x.",
+  "bullets": [
+    "Each service requires independent CI/CD, monitoring, and on-call rotation — tripling operational overhead for a 3-service split",
+    "Network latency between services adds 5-50ms per hop; a request touching 4 services adds 20-200ms vs monolith's in-process calls",
+    "Data consistency shifts from ACID transactions to eventual consistency via sagas or outbox patterns",
+    "Conway's Law applies: team boundaries should match service boundaries, requiring org restructuring before or during migration",
+    "The 'strangler fig' pattern allows incremental migration, extracting one bounded context at a time while the monolith still serves remaining traffic"
+  ]
+}
+```
+
+**`branch` response** (for generating follow-up questions from a node):
+```json
+{
+  "branches": [
+    {
+      "question": "What bounded contexts in the current monolith have the most independent data models and could be extracted first?",
+      "pathType": "go-deeper",
+      "quality": { "novelty": 0.8, "specificity": 0.9, "challenge": 0.4 }
+    },
+    {
+      "question": "How would you handle distributed transactions for operations currently using a single database transaction?",
+      "pathType": "challenge",
+      "quality": { "novelty": 0.7, "specificity": 0.85, "challenge": 0.9 }
+    },
+    {
+      "question": "What parallels exist with how Netflix or Shopify decomposed their monoliths, and which lessons transfer to your scale?",
+      "pathType": "connect",
+      "quality": { "novelty": 0.6, "specificity": 0.7, "challenge": 0.3 }
+    }
+  ]
+}
+```
+
+**`path_questions` response** (for generating the 6 Conversation Compass directions):
+```json
+{
+  "paths": {
+    "clarify": "What exactly do you mean by 'monolith' — single deployable, single codebase, or single database?",
+    "go-deeper": "What are the specific pain points that make microservices attractive over improving the monolith's modularity?",
+    "challenge": "What evidence do you have that microservices will solve your deployment bottleneck rather than shifting it to operational complexity?",
+    "apply": "If you extracted the authentication service as the first microservice tomorrow, what would break in the current system?",
+    "connect": "How does this architecture decision interact with your team's hiring plan and on-call capacity over the next 12 months?",
+    "surprise": "What if the real problem isn't the monolith architecture but the lack of feature flags and trunk-based development?"
+  }
+}
+```
+
+**`lane_plan` response** (for generating a structured plan from promoted nodes):
+```json
+{
+  "goals": [
+    {
+      "heading": "Reduce deployment coupling between teams",
+      "content": [
+        "Enable independent deployment cycles for auth, catalog, and order services",
+        "Target: each team deploys independently at least 2x per week"
+      ],
+      "evidence": [
+        {
+          "nodeId": "node-prag-012",
+          "laneId": "lane-pragmatic",
+          "quote": "deployment coupling is the primary bottleneck — 3 teams wait on 1 release train",
+          "relevance": "primary"
+        }
+      ]
+    }
+  ],
+  "assumptions": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+  "strategy": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+  "milestones": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+  "risks": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+  "nextActions": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }]
+}
+```
+
+**`unified_plan` response** (for the final synthesis — same `StructuredPlan` shape plus conflict resolutions):
+```json
+{
+  "sections": {
+    "goals": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+    "assumptions": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+    "strategy": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+    "milestones": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+    "risks": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }],
+    "nextActions": [{ "heading": "...", "content": ["..."], "evidence": [{"nodeId": "...", "laneId": "...", "quote": "...", "relevance": "primary"}] }]
+  },
+  "conflictsResolved": [
+    {
+      "description": "Auth extraction timing — clean separation vs dependency risk",
+      "laneAId": "lane-expansive",
+      "laneBId": "lane-pragmatic",
+      "resolution": "Extract auth second, after validating infrastructure with a low-risk read-only service.",
+      "tradeoff": "Slower initial progress in exchange for reduced blast radius."
+    }
+  ],
+  "unresolvedQuestions": [
+    "How will database schema ownership be divided between services?",
+    "What is the team's tolerance for eventual consistency in order processing?"
+  ]
+}
+```
+
 ### 6e. Streaming
 
-Streaming works the same way as v1 (SSE from Gemini), but the streaming text state lives in `view-store.ts`, not mixed into the semantic store. The semantic store only receives the final parsed result after streaming completes.
+Streaming text state lives in `view-store.ts`, not mixed into the semantic store. The semantic store only receives the final parsed result after streaming completes. This isolation prevents premature staleness propagation while content is still arriving.
+
+- **Buffering:** Raw SSE deltas are appended to a `streamBuffers: Map<string, string>` in `view-store.ts`. Simple append-only — no ring buffer needed since LLM generates tokens slower than the browser can render them. The map key is the target node ID.
+
+- **Error recovery:** SSE connection drop → node FSM transitions to `failed` → partial buffer for that node is discarded → UI shows greyed-out partial text + "Retry" button. Retry re-sends the full prompt (no partial resume). The buffer entry is deleted on failure.
+
+- **Partial parse:** For structured JSON job types (`branch`, `lane_plan`, `unified_plan`), raw text accumulates unparsed during streaming — no incremental JSON parsing is attempted. When the stream completes, the full text is parsed. If the completed stream is invalid JSON, the schema gate rejects it, and the retry prompt adds: "Ensure your JSON response is complete and valid."
+
+- **State isolation:** Streaming buffers live only in the view store. The semantic store is updated only after streaming completes and validation passes. This means: (1) staleness propagation never fires during streaming, (2) auto-save captures the pre-streaming state until the response is finalized, (3) a crash during streaming loses only the in-flight response, not the prior valid state.
+
+- **UI rendering:** The `StreamingText` component subscribes to `streamBuffers.get(nodeId)` with a React Flow selector. It renders with a blinking cursor at the end. On completion, the streaming text is replaced by the parsed semantic content.
 
 ### 6f. Auto-save
 
-`src/persistence/hooks.ts` provides `useAutoSave()` which subscribes to the semantic store and debounce-saves to IndexedDB every 500ms. On app load, `useSessionRestore()` reads from IndexedDB and hydrates all three stores.
+`src/persistence/hooks.ts` provides `useAutoSave()` and `useSessionRestore()`:
+
+- **Debounce:** Trailing-edge 500ms debounce. Rapid operations (e.g., dragging multiple nodes, receiving multiple LLM chunks) produce a single write. Uses `setTimeout`/`clearTimeout` — no external debounce library needed.
+
+- **Write granularity:** Full session envelope snapshot on each save. Typical size is ~100-200KB for a session with 50-100 nodes. IndexedDB handles this efficiently via `put()` which overwrites the previous version atomically.
+
+- **Corruption recovery:** Every IDB read passes through the corresponding Zod schema before entering the Zustand store. If an entity fails validation, it is logged to `console.warn`, excluded from the hydrated state, and a toast is shown: "Some data could not be loaded." Remaining valid entities load normally. This handles partial corruption gracefully.
+
+- **Mid-write crash:** IDB transactions are atomic. A crash mid-transaction → full rollback to the previous consistent state. Maximum data loss is the 500ms debounce window (the changes since the last successful save).
+
+- **Tab conflict:** v1 uses last-write-wins semantics. Both tabs write to the same IDB store; whichever writes last "wins." This is acceptable for a single-user v1. Future enhancement: `BroadcastChannel` for duplicate tab detection with a warning toast.
 
 **Phase 1 acceptance criteria:**
 - [ ] User can type a topic (>=10 chars) and start a session
@@ -1216,6 +1833,21 @@ Streaming works the same way as v1 (SSE from Gemini), but the streaming text sta
 The `DialogueTurn` schema (defined in Phase 0) represents each exchange. Dialogue turns are stored in the semantic store as a flat array, indexed by `nodeId`.
 
 ### 7b. Dialectic Mode Prompts
+
+#### Why These Four Modes
+
+The four modes span two orthogonal axes of dialogue behavior:
+
+| | Adversarial (pushes back) | Supportive (builds up) |
+|---|---|---|
+| **Question-led** (draws out reasoning) | Socratic | Collaborative |
+| **Position-led** (asserts claims) | Devil's Advocate | Steelman |
+
+This 2x2 matrix provides complete coverage of useful dialogue dynamics. A user who is *uncertain* benefits from question-led modes that draw out their thinking. A user who is *confident* benefits from position-led modes that either challenge or strengthen their stance.
+
+**Why not more modes?** Two candidates were considered and rejected:
+- "Neutral summarizer" falls outside the dialectic framework — summarization is handled separately by the "Conclude & Synthesize" action, which isn't a dialogue mode but a terminal operation.
+- "First Principles" and "Red Team" are subsumable under Socratic-intense and Devil's Advocate-intense respectively, via the existing `challengeDepth` mechanism. Adding them as separate modes would create confusion about when to use each.
 
 `src/generation/prompts/dialogue.ts`:
 
@@ -1270,11 +1902,19 @@ The AI response format:
 
 ### 7d. Challenge Depth
 
-The session-level `challengeDepth` setting (gentle | balanced | intense) modulates the prompts:
+The session-level `challengeDepth` setting (gentle | balanced | intense) modulates multiple dimensions of the dialogue prompt simultaneously:
 
-- **Gentle**: "Gently probe assumptions. Be supportive."
-- **Balanced**: "Challenge directly but respectfully. Expect the user to defend."
-- **Intense**: "Rigorously interrogate every claim. Accept nothing at face value."
+| Parameter | Gentle | Balanced | Intense |
+|-----------|--------|----------|---------|
+| Concession frequency | Every 2-3 turns | Every 4-5 turns | Only when cornered by evidence |
+| Follow-up persistence | Accept first answer | 1 follow-up per claim | 2-3 follow-ups, demand specifics |
+| Assumption targeting | Explicitly stated assumptions only | Unstated assumptions too | Meta-assumptions (why this framing?) |
+| Language register | "I wonder if..." / "Have you considered..." | "That claim needs support." / "What evidence..." | "That's unfounded. Show me the data." |
+| Prompt instruction | "Gently probe assumptions. Be supportive. Acknowledge good points frequently." | "Challenge directly but respectfully. Expect the user to defend claims with reasoning." | "Rigorously interrogate every claim. Accept nothing at face value. Demand evidence." |
+
+**Transition rule:** Changing depth mid-dialogue applies from the next AI turn. The system does not retroactively rewrite prior turns. When switching from intense → gentle, the AI includes an implicit "stepping back" meta-comment (e.g., "Let me take a less adversarial approach...") to avoid jarring tone shifts.
+
+**Defensive user detection:** If the user's last 3 responses are all < 20 words and contain defensive markers ("I already said", "like I mentioned", "as I stated"), the system auto-backs-off one level (intense → balanced, balanced → gentle) and shows a toast: "Easing challenge depth based on conversation flow." This prevents the dialogue from becoming unproductive.
 
 ### 7e. Conclude & Synthesize
 
@@ -1362,6 +2002,18 @@ export function buildLanePlanPrompt(
 
 ### 9a. Map-Reduce Pipeline
 
+#### Why Pairwise Map-Reduce
+
+Three synthesis approaches were considered:
+
+1. **Single-shot concatenation:** Concatenate all 4 lane plans (~12K tokens input) into one prompt. Fails because LLMs produce "lowest common denominator" synthesis that papers over real conflicts. The model optimizes for coherent output, which means quietly dropping contradictions rather than surfacing them.
+
+2. **Sequential merge:** Merge A+B, then AB+C, then ABC+D. Creates ordering bias — the first plan anchors the result, and each subsequent plan gets progressively less influence. The final plan is really "Plan A with adjustments" rather than a genuine synthesis.
+
+3. **Pairwise map-reduce:** Compare every pair independently (no ordering bias), extract conflicts as structured data, resolve in a separate call. Every lane gets equal treatment; conflicts are surfaced explicitly rather than smoothed over.
+
+With 4 lanes, C(4,2) = 6 pairwise comparisons. The 6 map calls are fully parallelizable (no dependencies between them), reducing wall-clock time to roughly 2 sequential LLM calls (map batch + reduce + format). At N=8 lanes this becomes 28 comparisons — still parallelizable but with a user warning about increased latency and cost. N>8 is not supported in v1.
+
 The synthesis happens in three stages:
 
 **Stage 1: Map (Conflict Extraction)**
@@ -1420,7 +2072,109 @@ The unified plan's `evidence` array contains `EvidenceRef` entries that trace th
 
 The `EvidenceTrail` component renders this chain visually: clicking an evidence citation scrolls the canvas to the source node and highlights it.
 
+#### Concrete Evidence Chain Example
+
+Trace a single insight through the full 4-step evidence chain:
+
+**Step 1: Exploration node generates insight**
+
+Node `node-prag-042` in the Pragmatic lane, answering "What would break if you extracted authentication as the first microservice?":
+```json
+{
+  "summary": "Extracting auth creates a single point of failure for all services and requires solving token propagation before any other service can be extracted.",
+  "bullets": [
+    "Every service must validate tokens — adds 5-15ms latency per request",
+    "Session state moves from in-process to distributed cache (Redis/Memcached)",
+    "Existing monolith endpoints need a compatibility shim during migration",
+    "Auth service downtime = total system downtime until circuit breakers are configured"
+  ]
+}
+```
+
+**Step 2: User promotes the node**
+
+User promotes `node-prag-042` with reason `risk_identification` and note: "Critical dependency risk — auth extraction order matters."
+
+```json
+{
+  "id": "promo-019",
+  "nodeId": "node-prag-042",
+  "laneId": "lane-pragmatic",
+  "reason": "risk_identification",
+  "note": "Critical dependency risk — auth extraction order matters."
+}
+```
+
+**Step 3: Lane plan references the promoted node**
+
+The Pragmatic lane plan's `risks[0]` section cites the promoted node:
+
+```json
+{
+  "heading": "Authentication Single Point of Failure",
+  "content": [
+    "Extracting authentication first creates a critical dependency: every subsequent microservice depends on the auth service being available and performant.",
+    "Mitigation: implement circuit breakers and token caching before extracting any dependent service."
+  ],
+  "evidence": [
+    {
+      "nodeId": "node-prag-042",
+      "laneId": "lane-pragmatic",
+      "quote": "Auth service downtime = total system downtime until circuit breakers are configured",
+      "relevance": "primary"
+    }
+  ]
+}
+```
+
+**Step 4: Unified plan resolves cross-lane conflict**
+
+The Expansive lane recommended "extract auth first for clean separation" while the Pragmatic lane identified this as a risk. The unified plan's `conflictsResolved[2]` addresses this:
+
+```json
+{
+  "description": "Auth extraction timing — clean separation vs. dependency risk",
+  "laneAId": "lane-expansive",
+  "laneBId": "lane-pragmatic",
+  "resolution": "Extract auth second, after a low-risk read-only service (e.g., product catalog) validates the infrastructure. Implement circuit breakers and token caching as prerequisites.",
+  "tradeoff": "Slower initial progress in exchange for reduced blast radius. First extraction validates tooling without risking total downtime."
+}
+```
+
+And the unified plan's `risks[2]` section references the same `nodeId`:
+
+```json
+{
+  "heading": "Authentication Extraction Ordering Risk",
+  "content": [
+    "Authentication must not be the first extracted service despite its conceptual independence.",
+    "Prerequisites: circuit breakers, distributed token cache, compatibility shim for monolith endpoints."
+  ],
+  "evidence": [
+    {
+      "nodeId": "node-prag-042",
+      "laneId": "lane-pragmatic",
+      "quote": "Auth service downtime = total system downtime until circuit breakers are configured",
+      "relevance": "primary"
+    }
+  ]
+}
+```
+
+**EvidenceTrail rendering:** The UI renders this as clickable breadcrumbs: `Unified Plan > risks[2] > Pragmatic Lane > node-prag-042`. Clicking the node reference pans the canvas to the Pragmatic lane, centers on `node-prag-042`, and highlights it with a pulse animation.
+
 ### 9c. Staleness Propagation
+
+#### Why Staleness Exists: Content Dependency Theory
+
+Each child node's content was generated *conditioned on* its ancestors' content. When ancestor A's answer changes, child C may now be incoherent relative to the new version. Staleness is a conservative signal: it doesn't claim C is wrong, only that C's assumptions have changed and should be reviewed.
+
+This follows from the information-theoretic structure of the tree: content flows downward from root to leaves, so changes at any node potentially invalidate all downstream content that was generated using the old version as context.
+
+**Propagation rules:**
+- **Downward only:** Matches the direction of information flow. A child changing doesn't invalidate its parent.
+- **Cross-layer:** Promoted node stale → the lane plan citing it becomes stale → the unified plan (if it references that lane plan) also becomes stale.
+- **BFS traversal:** Handles diamond patterns (two paths converging on the same descendant) by processing each node exactly once via a `visited` set. This prevents infinite loops and redundant state transitions.
 
 `src/core/graph/staleness.ts`:
 
@@ -1434,10 +2188,16 @@ export function propagateStaleness(
 ): string[] {
   const index = buildAdjacencyIndex(nodes, edges);
   const staleIds: string[] = [];
-  const queue = index.childrenOf.get(changedNodeId) ?? [];
+  const visited = new Set<string>(); // Cycle guard — see Edge Case 10b-10
+  const queue = [...(index.childrenOf.get(changedNodeId) ?? [])];
 
   while (queue.length > 0) {
     const current = queue.shift()!;
+    if (visited.has(current)) {
+      console.warn('Cycle detected in staleness propagation', { changedNodeId, current });
+      continue; // Break cycle, don't infinite-loop
+    }
+    visited.add(current);
     staleIds.push(current);
     const children = index.childrenOf.get(current) ?? [];
     queue.push(...children);
@@ -1504,6 +2264,135 @@ Future phases (not v1):
 
 ---
 
+## 10b. Edge Cases and Error Handling
+
+Every edge case below must have a handling strategy implemented. These are not theoretical — they are runtime conditions that will occur in normal usage.
+
+### 10b-1. Gemini API Timeouts
+
+**Non-streaming calls:** 30-second `AbortController` timeout. On timeout, exponential backoff retry: 2s, 4s, 8s delays. After 3 failures → node FSM transitions to terminal `failed` state. Toast: "Generation timed out after 3 attempts. [Retry]".
+
+**Streaming calls:** 10-second inactivity timeout (no chunks received). Partial content discarded entirely — no display of incomplete responses. Node FSM → `failed`.
+
+**Hard ceiling:** 60 seconds total wall-clock time per generation call regardless of streaming progress. Prevents indefinite hangs on slow connections.
+
+```typescript
+// src/generation/providers/gemini.ts
+const TIMEOUT_NON_STREAMING = 30_000;
+const TIMEOUT_STREAM_INACTIVITY = 10_000;
+const TIMEOUT_HARD_CEILING = 60_000;
+const RETRY_DELAYS = [2000, 4000, 8000];
+```
+
+### 10b-2. Rate Limiting
+
+**Client-side throttle:** Token-bucket rate limiter targeting 12 RPM (Gemini free tier limit) with burst capacity of 3. Implemented as a simple counter with sliding window.
+
+**HTTP 429 handling:** Parse `Retry-After` header if present (default to 15s if absent). Toast: "Rate limited by Gemini. Retrying in {N}s..." with countdown. Job stays in `running` state during the wait.
+
+**Job concurrency:** Maximum 2 concurrent generation jobs. Additional jobs remain in `queued` state. UI shows "Queued..." indicator on waiting nodes (distinct from the spinner used for `running` jobs).
+
+```typescript
+// src/generation/rate-limiter.ts
+const MAX_RPM = 12;
+const BURST_CAPACITY = 3;
+const MAX_CONCURRENT_JOBS = 2;
+```
+
+### 10b-3. Partial Stream Failures
+
+**Detection:** SSE connection closes without the `[DONE]` sentinel or Gemini's `finishReason: "STOP"` → classified as failed.
+
+**Policy:** Discard all partial content. Do not display incomplete JSON. Do not attempt to parse partial structured responses.
+
+**Recovery:** Node FSM → `failed`. UI shows greyed-out area with "Connection lost. [Retry]" button. Retry re-sends full prompt from scratch.
+
+**Network awareness:** Subscribe to `navigator.onLine`. On `offline` event → immediately abort all in-flight requests, show persistent banner "Offline — generation paused", flush auto-save to IDB. On `online` event → dismiss banner, resume queued jobs.
+
+### 10b-4. IndexedDB Quota
+
+**Startup check:** Call `navigator.storage.estimate()` on app load. If `quota - usage < 50MB`, show warning toast: "Storage is running low. Consider deleting old sessions."
+
+**Quota exceeded:** Catch `QuotaExceededError` on any IDB `put()` call. Show blocking modal: "Storage full. Delete old sessions to continue." Prevent further writes until user frees space.
+
+**Session size tracking:** After each auto-save, record the approximate session size. Warn if a single session exceeds 10MB: "This session is very large. Consider exporting and starting fresh."
+
+**No IDB available (private browsing):** Detect on startup by attempting a test write. If IDB is unavailable, show persistent banner: "Private browsing detected. Your data will not persist after closing this tab." All functionality works normally — data just lives in memory only.
+
+### 10b-5. Multiple Tabs
+
+**v1 approach (simple):** Use `localStorage` key `fuda-plan-tab-lock` with value `{tabId, timestamp}`. Each tab writes a heartbeat every 10 seconds. If a second tab opens and detects a lock with a timestamp less than 30 seconds old, it shows a read-only warning: "Another tab has this session open. Changes here won't be saved."
+
+**Alternative (simpler, acceptable for v1):** Just show a toast warning on duplicate tab detection. Use last-write-wins for IDB. Single-user product means conflicts are self-inflicted and recoverable.
+
+### 10b-6. Semantic Quality Validation
+
+Beyond Zod structural validation (which checks types and shapes), add semantic content checks in `quality-gates.ts`:
+
+**Minimum content lengths:**
+- `answer.summary` > 20 characters
+- Each `answer.bullets[]` item > 10 characters
+- Each `branch.question` > 15 characters
+
+**Filler phrase blocklist:** Reject responses containing any of: "as an AI", "I cannot", "TODO", "insert here", "lorem ipsum", "placeholder". These indicate the LLM failed to generate real content.
+
+**Pairwise deduplication:** For `branch` responses, compute Jaccard similarity between all generated questions. If any pair exceeds 0.7 threshold, reject the duplicate with lower quality score.
+
+**Self-referential detection:** Reject responses that reference the system prompt, mention being an AI language model, or contain meta-commentary about the task rather than answering it.
+
+**EvidenceRef integrity:** For `lane_plan` and `unified_plan` responses, verify: (1) every `nodeId` in an EvidenceRef exists in the session's node store, (2) every `quote` fuzzy-matches the source node's content with >80% character overlap (Levenshtein ratio). Mismatched quotes indicate hallucinated citations.
+
+### 10b-7. API Key Security
+
+**Format validation:** Gemini API keys are 39 characters starting with "AIza". Validate on entry before storing.
+
+**Test call on entry:** When user enters a key, make a trivial generation call (e.g., "Say hello"). HTTP 401/403 → "Invalid API key. Please check and re-enter." HTTP 200 → key accepted, stored in IDB.
+
+**Runtime auth failures:** Any 401/403 during normal generation → show modal to update key. All queued jobs transition to `failed`. Previously completed content is unaffected.
+
+**Storage:** Key stored in IndexedDB `settings` store — never in `localStorage` (visible in devtools plaintext) and never in exported JSON files. Never logged in production builds (`console.log` calls stripped by Vite in production mode).
+
+**No key configured:** App starts in demo mode with the mock provider. Persistent banner: "Demo mode — using sample responses. Add your Gemini API key in Settings for real AI generation."
+
+### 10b-8. Offline Mode
+
+**Detection:** `window.addEventListener('online')` and `window.addEventListener('offline')`.
+
+**Offline behavior:**
+- Canvas navigation, pan/zoom, collapse/expand: works normally (all client-side)
+- Node promotion/unpromotion: works normally (state change only)
+- Generation requests: queued but paused. Spinner replaced with "Offline — will resume when connected."
+- Auto-save: continues normally (IDB is local). Flush immediately on `offline` event to ensure current state is persisted.
+
+**Reconnect:** On `online` event, automatically resume queued generation jobs in order. Toast: "Back online. Resuming {N} queued generation(s)."
+
+### 10b-9. Deep Trees (100+ Nodes)
+
+**React Flow performance:**
+- Enable `onlyRenderVisibleElements` prop to skip rendering off-screen nodes.
+- Wrap node data in `useMemo` keyed on `node.updatedAt` to prevent unnecessary re-renders.
+- `useCallback` on all event handlers passed to React Flow.
+
+**Adjacency index caching:** Cache the `AdjacencyIndex` in the semantic store. Invalidate only when nodes or edges are added/removed — not on every content update.
+
+**Collapse/expand:** Each node has an `isCollapsed` boolean in the view store. When collapsed, all descendants are hidden from the React Flow node list. A badge shows "+N hidden nodes" on the collapsed node.
+
+**Soft depth limit:** At depth 15, replace the "Branch" button with "Promote insights and generate a plan." This encourages the user to synthesize rather than going deeper. The limit is soft — the user can still branch via the Conversation Compass if they explicitly choose to.
+
+**Dialogue cap:** Maximum 20 turns per node dialogue. After 20 turns, show "Dialogue limit reached. [Conclude & Synthesize] to capture insights." Prevents unbounded context window growth.
+
+### 10b-10. Cycle Detection
+
+**Graph invariant:** The exploration graph must be a DAG (directed acyclic graph). Cycles should be structurally impossible because edges always point from parent to child, and nodes are created (not reused) during branching.
+
+**Defensive checks:**
+- Add `visited: Set<string>` to `getAncestorChain()`. If a node is encountered twice during traversal, break the loop and `console.warn('Cycle detected in ancestor chain', { nodeId, visited })`.
+- Add the same guard to `propagateStaleness()` — the BFS queue already uses a pattern that could infinite-loop on cycles.
+
+**Structural invariant check:** On IDB load, verify that no node appears as both ancestor and descendant of another node. If detected, show toast: "Session data contains an inconsistency." Offer a "Repair session" button that removes the offending edge(s) using a simple heuristic: keep the edge with the earlier `createdAt` timestamp.
+
+---
+
 ## 11. Testing Strategy
 
 ### Unit Tests (Layer 1: Domain Core)
@@ -1561,6 +2450,36 @@ Tests the complete happy path without UI:
 6. Repeat for 3 lanes
 7. Run unified synthesis
 8. Verify evidence chain from unified plan back to source nodes
+
+### Development Workflow Commands
+
+```bash
+# Setup
+npm create vite@latest fuda-plan -- --template react-ts
+cd fuda-plan
+npm install zustand zod idb @xyflow/react
+npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
+
+# Development
+npm run dev                          # http://localhost:5173
+npx tsc --noEmit                     # Type-check without emit (CI gate)
+
+# Testing
+npx vitest                           # Run all tests once
+npx vitest --watch                   # Watch mode for development
+npx vitest --environment node src/__tests__/core/  # Layer 1 only (no DOM)
+npx vitest --coverage                # Coverage report (istanbul)
+
+# Linting
+npx eslint src/ --ext .ts,.tsx       # Lint check
+npx prettier --check src/            # Format check
+npx prettier --write src/            # Auto-format
+
+# Build
+npm run build                        # Production build → dist/
+npm run preview                      # Preview production build locally
+ls -la dist/                         # Verify output size (target < 500KB gzipped)
+```
 
 ---
 
