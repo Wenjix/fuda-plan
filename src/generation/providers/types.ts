@@ -9,9 +9,9 @@ export type ProviderId = 'mistral' | 'gemini' | 'anthropic' | 'openai';
 
 export const PERSONA_PROVIDER_MAP: Record<PersonaId, ProviderId> = {
   expansive: 'mistral',
-  analytical: 'gemini',
+  analytical: 'mistral',
   pragmatic: 'anthropic',
-  socratic: 'openai',
+  socratic: 'anthropic',
 };
 
 export const PROVIDER_MODELS: Record<ProviderId, string> = {
