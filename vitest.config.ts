@@ -17,5 +17,10 @@ export default defineConfig({
     environmentMatchGlobs: [
       ['src/core/**', 'node'],
     ],
+    server: {
+      deps: {
+        inline: ['zod'],
+      },
+    },
   },
 })
