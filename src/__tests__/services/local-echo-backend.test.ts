@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { LocalEchoBackend } from '../../services/local-echo-backend';
 import type { TerminalBackendEvents, TerminalConnectionState } from '../../services/terminal-backend';
 
@@ -192,5 +192,72 @@ describe('LocalEchoBackend', () => {
   it('resize is a no-op (does not throw)', async () => {
     await backend.connect({ cols: 80, rows: 24, events: mocks.events });
     expect(() => backend.resize(120, 40)).not.toThrow();
+  });
+
+  it('vibe command outputs informational message', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    mocks.output.length = 0;
+
+    backend.write('vibe\r');
+
+    const fullOutput = mocks.output.join('');
+    expect(fullOutput).toContain('Mistral Vibe CLI');
+    expect(fullOutput).toContain('not available');
+    expect(fullOutput).toContain('uv tool install mistral-vibe');
+  });
+
+  it('vibe-status command outputs status summary', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    mocks.output.length = 0;
+
+    backend.write('vibe-status\r');
+
+    const fullOutput = mocks.output.join('');
+    expect(fullOutput).toContain('Vibe Tool Status');
+    expect(fullOutput).toContain('not available');
+    expect(fullOutput).toContain('not configured');
+    expect(fullOutput).toContain('local-echo');
+  });
+
+  it('help command lists vibe commands', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+    mocks.output.length = 0;
+
+    backend.write('help\r');
+
+    const fullOutput = mocks.output.join('');
+    expect(fullOutput).toContain('vibe');
+    expect(fullOutput).toContain('vibe-status');
+  });
+
+  it('probeTool("vibe") returns status with installRequired=true', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+
+    const status = await backend.probeTool('vibe');
+
+    expect(status.available).toBe(false);
+    expect(status.installRequired).toBe(true);
+    expect(status.installScope).toBe('host');
+    expect(status.apiKeyConfigured).toBe(false);
+  });
+
+  it('probeTool("vibe") sets lastCheckedAt to valid ISO string', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+
+    const status = await backend.probeTool('vibe');
+
+    expect(status.lastCheckedAt).toBeTruthy();
+    expect(new Date(status.lastCheckedAt!).toISOString()).toBe(status.lastCheckedAt);
+  });
+
+  it('probeTool("unknown-tool") returns default status', async () => {
+    await backend.connect({ cols: 80, rows: 24, events: mocks.events });
+
+    const status = await backend.probeTool('unknown-tool');
+
+    expect(status.available).toBe(false);
+    expect(status.installRequired).toBe(true);
+    expect(status.installScope).toBeNull();
+    expect(status.lastCheckedAt).toBeNull();
   });
 });

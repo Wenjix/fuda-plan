@@ -1,16 +1,20 @@
 import type { ITerminalBackend, TerminalBackendEvents, TerminalConnectionState } from './terminal-backend';
+import type { TerminalToolStatus } from './terminal-tool-types';
+import { createDefaultToolStatus } from './terminal-tool-types';
 
 const BUILT_IN_COMMANDS: Record<string, (args: string[], ctx: LocalEchoBackend) => string> = {
   help: () =>
     [
       'Available commands:',
-      '  help      Show this message',
-      '  clear     Clear the terminal',
-      '  echo      Print arguments',
-      '  env       Show FUDA session variables',
-      '  history   Show command history',
-      '  date      Show current date/time',
-      '  whoami    Show current user',
+      '  help         Show this message',
+      '  clear        Clear the terminal',
+      '  echo         Print arguments',
+      '  env          Show FUDA session variables',
+      '  history      Show command history',
+      '  date         Show current date/time',
+      '  whoami       Show current user',
+      '  vibe         Mistral Vibe CLI (requires real backend)',
+      '  vibe-status  Show Vibe tool readiness',
       '',
     ].join('\r\n'),
 
@@ -34,6 +38,26 @@ const BUILT_IN_COMMANDS: Record<string, (args: string[], ctx: LocalEchoBackend) 
   date: () => new Date().toString() + '\r\n',
 
   whoami: () => 'fuda-user\r\n',
+
+  vibe: () =>
+    [
+      '\x1b[1;33mMistral Vibe CLI\x1b[0m is not available in local-echo mode.',
+      'To use Vibe, connect to a real terminal backend with:',
+      '  \x1b[36muv tool install mistral-vibe\x1b[0m',
+      '  \x1b[36mpip install mistral-vibe\x1b[0m',
+      '',
+    ].join('\r\n'),
+
+  'vibe-status': () =>
+    [
+      '\x1b[1mVibe Tool Status\x1b[0m (local-echo mode)',
+      '  Binary:    \x1b[31mnot available\x1b[0m (no real shell)',
+      '  API Key:   \x1b[31mnot configured\x1b[0m',
+      '  Runtime:   local-echo (frontend only)',
+      '',
+      'Connect a real terminal backend to enable Vibe.',
+      '',
+    ].join('\r\n'),
 };
 
 export class LocalEchoBackend implements ITerminalBackend {
@@ -126,6 +150,19 @@ export class LocalEchoBackend implements ITerminalBackend {
 
   getState(): TerminalConnectionState {
     return this.state;
+  }
+
+  async probeTool(tool: string): Promise<TerminalToolStatus> {
+    const status = createDefaultToolStatus();
+
+    if (tool === 'vibe') {
+      status.installRequired = true;
+      status.installScope = 'host';
+      status.lastCheckedAt = new Date().toISOString();
+    }
+
+    this.events?.onToolStatus?.(tool, status);
+    return status;
   }
 
   private handleLine(line: string): void {

@@ -5,9 +5,11 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useViewStore } from '../../store/view-store';
 import { useTerminalStore } from '../../store/terminal-store';
-import { openTerminal, endTerminalSession, getActiveBackend } from '../../store/terminal-actions';
+import { openTerminal, endTerminalSession, getActiveBackend, probeVibeToolStatus } from '../../store/terminal-actions';
 import type { ITerminalBackend } from '../../services/terminal-backend';
 import { buildXtermTheme } from './xterm-theme';
+import { TerminalSetupNotice } from './TerminalSetupNotice';
+import { deriveReadinessState } from '../../services/terminal-tool-types';
 import styles from './TerminalDrawer.module.css';
 
 export function TerminalDrawer() {
@@ -73,6 +75,12 @@ export function TerminalDrawer() {
         },
         onStateChange: (state) => {
           setConnectionState(state);
+          // Auto-probe Vibe tool status when backend becomes ready
+          if (state === 'ready') {
+            probeVibeToolStatus().catch(() => {
+              // Non-blocking; if probe fails, notice stays in default state
+            });
+          }
         },
         onExit: (exitCode, signal) => {
           setLastExit({ exitCode, signal });
@@ -181,6 +189,9 @@ export function TerminalDrawer() {
           },
           onStateChange: (state) => {
             useTerminalStore.getState().setConnectionState(state);
+            if (state === 'ready') {
+              probeVibeToolStatus().catch(() => {});
+            }
           },
           onExit: (exitCode, signal) => {
             useTerminalStore.getState().setLastExit({ exitCode, signal });
@@ -191,6 +202,9 @@ export function TerminalDrawer() {
       backendRef.current = backend;
     }
   }, []);
+
+  const toolStatus = useTerminalStore((s) => s.tooling.mistralVibe);
+  const vibeReadiness = deriveReadinessState(toolStatus);
 
   const statusDotClass =
     connectionState === 'ready'
@@ -212,6 +226,7 @@ export function TerminalDrawer() {
           <div className={`${styles.statusDot} ${statusDotClass}`} />
           <span className={styles.headerTitle}>Terminal</span>
           <span className={styles.statusText}>{connectionState}</span>
+          {vibeReadiness === 'ready' && <TerminalSetupNotice />}
         </div>
         <button
           className={styles.endSessionBtn}
@@ -222,6 +237,9 @@ export function TerminalDrawer() {
           End Session
         </button>
       </div>
+
+      {/* Vibe setup notice (install/setup banners — does not block terminal) */}
+      {vibeReadiness !== 'ready' && vibeReadiness !== 'unknown' && <TerminalSetupNotice />}
 
       {/* Terminal */}
       <div ref={containerRef} className={styles.terminalContainer} />

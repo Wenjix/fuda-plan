@@ -1,4 +1,6 @@
 import type { ITerminalBackend } from '../services/terminal-backend';
+import type { TerminalToolStatus } from '../services/terminal-tool-types';
+import { createDefaultToolStatus } from '../services/terminal-tool-types';
 import { createTerminalBackend } from '../services/terminal-factory';
 import { useTerminalStore } from './terminal-store';
 import { useViewStore } from './view-store';
@@ -81,4 +83,34 @@ export function endTerminalSession(): void {
     activeBackend = null;
   }
   useTerminalStore.getState().clear();
+}
+
+/**
+ * Probe Mistral Vibe tool status via the active backend.
+ * Falls back to a simulated "not available" status in local-echo mode.
+ */
+export async function probeVibeToolStatus(): Promise<TerminalToolStatus> {
+  const backend = getActiveBackend();
+  const store = useTerminalStore.getState();
+
+  store.setToolProbeInProgress(true);
+
+  try {
+    let status: TerminalToolStatus;
+
+    if (backend?.probeTool) {
+      status = await backend.probeTool('vibe');
+    } else {
+      // Frontend-only mode: no real shell, report install_required
+      status = createDefaultToolStatus();
+      status.installRequired = true;
+      status.installScope = 'host';
+      status.lastCheckedAt = new Date().toISOString();
+    }
+
+    store.setToolStatus('mistralVibe', status);
+    return status;
+  } finally {
+    useTerminalStore.getState().setToolProbeInProgress(false);
+  }
 }
