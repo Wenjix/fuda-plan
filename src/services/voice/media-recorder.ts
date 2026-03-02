@@ -19,17 +19,8 @@ export function getSupportedMimeType(): string {
   return ''; // browser default
 }
 
-function float32ToInt16(float32: Float32Array): Int16Array {
-  const int16 = new Int16Array(float32.length);
-  for (let i = 0; i < float32.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]));
-    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return int16;
-}
-
-function int16ToBase64(int16: Int16Array): string {
-  const bytes = new Uint8Array(int16.buffer);
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
@@ -39,12 +30,12 @@ function int16ToBase64(int16: Int16Array): string {
 
 /**
  * Captures raw PCM 16-bit audio at 16kHz for streaming to WebSocket STT.
- * Uses AudioContext + ScriptProcessorNode for real-time PCM chunk delivery.
+ * Uses AudioContext + AudioWorkletNode for off-main-thread processing.
  */
 export class PCMRecorder {
   private context: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private stream: MediaStream | null = null;
   private onChunk: ((pcmBase64: string) => void) | null = null;
   private startedAt = 0;
@@ -59,19 +50,18 @@ export class PCMRecorder {
     }
 
     this.context = new AudioContext({ sampleRate: 16000 });
-    this.source = this.context.createMediaStreamSource(this.stream);
+    await this.context.audioWorklet.addModule('/pcm-processor.js');
 
-    // Buffer size 4096 gives ~256ms chunks at 16kHz
-    this.processor = this.context.createScriptProcessor(4096, 1, 1);
-    this.processor.onaudioprocess = (e) => {
-      const float32 = e.inputBuffer.getChannelData(0);
-      const int16 = float32ToInt16(float32);
-      const base64 = int16ToBase64(int16);
+    this.source = this.context.createMediaStreamSource(this.stream);
+    this.workletNode = new AudioWorkletNode(this.context, 'pcm-processor');
+
+    this.workletNode.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+      const base64 = arrayBufferToBase64(e.data);
       this.onChunk?.(base64);
     };
 
-    this.source.connect(this.processor);
-    this.processor.connect(this.context.destination);
+    this.source.connect(this.workletNode);
+    this.workletNode.connect(this.context.destination);
     this.startedAt = Date.now();
   }
 
@@ -81,7 +71,7 @@ export class PCMRecorder {
   }
 
   stop(): void {
-    this.processor?.disconnect();
+    this.workletNode?.disconnect();
     this.source?.disconnect();
     this.onChunk = null;
   }
@@ -94,7 +84,7 @@ export class PCMRecorder {
     }
     this.context = null;
     this.source = null;
-    this.processor = null;
+    this.workletNode = null;
     this.stream = null;
     this.startedAt = 0;
   }
