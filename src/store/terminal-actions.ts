@@ -4,6 +4,7 @@ import { createDefaultToolStatus } from '../services/terminal-tool-types';
 import { createTerminalBackend } from '../services/terminal-factory';
 import { useTerminalStore } from './terminal-store';
 import { useViewStore } from './view-store';
+import { useSemanticStore } from './semantic-store';
 import { generateId } from '../utils/ids';
 
 // Module-level backend reference (not in Zustand — avoids serialization)
@@ -102,6 +103,41 @@ export function endTerminalSession(): void {
     activeBackend = null;
   }
   useTerminalStore.getState().clear();
+}
+
+/**
+ * Send a node's content to Mistral Vibe in the terminal.
+ */
+export function sendNodeToVibe(nodeId: string): void {
+  const node = useSemanticStore.getState().getNode(nodeId);
+  if (!node?.answer) return;
+
+  const lines = [
+    node.question, '',
+    node.answer.summary,
+    ...node.answer.bullets.map(b => `- ${b}`),
+  ];
+  const content = lines.join('\n');
+
+  useViewStore.getState().setTerminalOpen(true);
+
+  const backend = getActiveBackend();
+  if (backend?.getState() === 'ready') {
+    writeVibeCommand(backend, content);
+  } else {
+    const unsub = useTerminalStore.subscribe((state) => {
+      if (state.connectionState === 'ready') {
+        unsub();
+        const b = getActiveBackend();
+        if (b) writeVibeCommand(b, content);
+      }
+    });
+  }
+}
+
+function writeVibeCommand(backend: ITerminalBackend, content: string): void {
+  const escaped = content.replace(/'/g, "'\\''");
+  backend.write(`echo '${escaped}' | vibe\r`);
 }
 
 /**

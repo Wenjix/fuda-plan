@@ -10,6 +10,7 @@ import { useViewStore } from '../../store/view-store';
 import { useSemanticStore } from '../../store/semantic-store';
 import { answerNode } from '../../store/actions';
 import { promoteNode, unpromoteNode } from '../../store/promotion-actions';
+import { sendNodeToVibe } from '../../store/terminal-actions';
 import { canPromote } from '../../core/fsm/node-fsm';
 import styles from './ExplorationCard.module.css';
 
@@ -27,7 +28,6 @@ const REASON_LABELS: Record<PromotionReason, string> = {
 function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) {
   const node = data;
   const streamBuffer = useViewStore(s => s.streamBuffers.get(id) ?? '');
-  const openDialoguePanel = useViewStore(s => s.openDialoguePanel);
   const toggleCollapse = useViewStore(s => s.toggleCollapse);
   const viewNode = useViewStore(s => s.viewNodes.get(id));
   const isStreaming = node.fsmState === 'generating';
@@ -172,8 +172,8 @@ function ExplorationCardInner({ data, id }: NodeProps<ExplorationCardNodeType>) 
           </button>
         )}
         {node.fsmState === 'resolved' && (
-          <button className={styles.discussBtn} onClick={() => openDialoguePanel(id)}>
-            Discuss
+          <button className={styles.vibeBtn} onClick={() => sendNodeToVibe(id)}>
+            Ask Vibe
           </button>
         )}
       </div>

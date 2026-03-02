@@ -16,8 +16,13 @@ vi.mock('../../store/actions', () => ({
   answerNode: vi.fn(),
 }))
 
+vi.mock('../../store/terminal-actions', () => ({
+  sendNodeToVibe: vi.fn(),
+}))
+
 import { ExplorationCard } from '../../components/ExplorationCard/ExplorationCard'
 import { answerNode } from '../../store/actions'
+import { sendNodeToVibe } from '../../store/terminal-actions'
 
 function makeNodeData(overrides?: Partial<SemanticNode>): SemanticNode {
   const now = new Date().toISOString()
@@ -103,9 +108,15 @@ describe('ExplorationCard', () => {
     expect(screen.queryByText('Connect')).toBeNull()
   })
 
-  it('renders "Discuss" button when resolved', () => {
+  it('renders "Ask Vibe" button when resolved', () => {
     renderCard(makeNodeData({ fsmState: 'resolved' }))
-    expect(screen.getByText('Discuss')).toBeDefined()
+    expect(screen.getByText('Ask Vibe')).toBeDefined()
+  })
+
+  it('calls sendNodeToVibe when "Ask Vibe" is clicked', () => {
+    renderCard(makeNodeData({ fsmState: 'resolved' }))
+    fireEvent.click(screen.getByText('Ask Vibe'))
+    expect(sendNodeToVibe).toHaveBeenCalledWith('node-1')
   })
 
   it('renders answer summary and bullets when node has answer', () => {

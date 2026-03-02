@@ -112,7 +112,7 @@
   color: var(--text-primary);
 }
 
-.discussBtn {
+.vibeBtn {
   padding: 4px 12px;
   border-radius: 6px;
   border: 1px solid var(--btn-accent-border);
@@ -123,7 +123,7 @@
   transition: all 0.15s;
 }
 
-.discussBtn:hover {
+.vibeBtn:hover {
   background: var(--btn-accent-bg-hover);
   border-color: var(--accent-hover);
 }
@@ -180,7 +180,7 @@
   font-size: 0.72rem;
 }
 
-:global(.pane-compact) .discussBtn {
+:global(.pane-compact) .vibeBtn {
   padding: 3px 8px;
   font-size: 0.68rem;
 }
