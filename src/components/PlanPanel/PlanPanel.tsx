@@ -13,12 +13,13 @@ const SYNTHESIS_STATUSES: ReadonlySet<SessionStatus> = new Set([
 
 interface PlanPanelProps {
   onGeneratePlan: (laneId: string) => void;
+  onGenerateDirectPlan?: () => void;
   onEvidenceClick?: (nodeId: string) => void;
   onSynthesize?: () => Promise<void>;
   onTalkToPlan?: () => void;
 }
 
-export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize, onTalkToPlan }: PlanPanelProps) {
+export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClick, onSynthesize, onTalkToPlan }: PlanPanelProps) {
   const lanePlans = useSemanticStore(s => s.lanePlans);
   const unifiedPlan = useSemanticStore(s => s.unifiedPlan);
   const activeLaneId = useSessionStore(s => s.activeLaneId);
@@ -27,6 +28,7 @@ export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize, onTal
   const promotionCount = useSemanticStore(s =>
     s.promotions.filter(p => p.laneId === activeLaneId).length,
   );
+  const totalPromotions = useSemanticStore(s => s.promotions.length);
 
   const showSynthesis = SYNTHESIS_STATUSES.has(sessionStatus);
 
@@ -85,6 +87,22 @@ export function PlanPanel({ onGeneratePlan, onEvidenceClick, onSynthesize, onTal
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Direct plan generation */}
+      {totalPromotions >= 3 && !unifiedPlan && onGenerateDirectPlan && (
+        <div className={styles.directPlan}>
+          <div className={styles.divider} />
+          <p className={styles.directPlanText}>
+            {totalPromotions} promoted node{totalPromotions !== 1 ? 's' : ''} across all lanes
+          </p>
+          <button
+            className={styles.directPlanBtn}
+            onClick={onGenerateDirectPlan}
+          >
+            Generate Plan
+          </button>
         </div>
       )}
 

@@ -1,11 +1,11 @@
 // Timeout constants
-export const NON_STREAMING_TIMEOUT_MS = 30_000;
-export const STREAMING_INACTIVITY_TIMEOUT_MS = 10_000;
-export const HARD_CEILING_MS = 60_000;
+export const NON_STREAMING_TIMEOUT_MS = 90_000;
+export const STREAMING_INACTIVITY_TIMEOUT_MS = 15_000;
+export const HARD_CEILING_MS = 120_000;
 
 // Exponential backoff: 2s, 4s, 8s
 export const BACKOFF_BASE_MS = 2_000;
-export const MAX_RETRIES = 3;
+export const MAX_RETRIES = 2;
 
 export function createTimeoutController(timeoutMs: number): { controller: AbortController; clear: () => void } {
   const controller = new AbortController();

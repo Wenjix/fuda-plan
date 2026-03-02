@@ -3,7 +3,8 @@ import { useSessionStore } from './store/session-store';
 import { useSemanticStore } from './store/semantic-store';
 import { useViewStore } from './store/view-store';
 import { switchSession, deleteSession, listSessions } from './store/workspace-actions';
-import { generateLanePlan } from './store/plan-actions';
+import { generateLanePlan, generateDirectPlan } from './store/plan-actions';
+import { useToastStore } from './store/toast-store';
 import { triggerSynthesis } from './store/synthesis-actions';
 import { toggleTerminal } from './store/terminal-actions';
 import { addUserTurn, generateDialogueResponse, concludeDialogue } from './store/dialogue-actions';
@@ -76,6 +77,22 @@ function App() {
     const personaId = lane?.personaId ?? 'analytical';
     generateLanePlan(laneId, personaId).catch((err) => {
       console.error('Failed to generate lane plan:', err);
+      useToastStore.getState().addToast(
+        `Plan generation failed: ${err.message}`,
+        'error',
+        5000,
+      );
+    });
+  }, []);
+
+  const handleGenerateDirectPlan = useCallback(() => {
+    generateDirectPlan().catch((err) => {
+      console.error('Failed to generate direct plan:', err);
+      useToastStore.getState().addToast(
+        `Plan generation failed: ${err.message}`,
+        'error',
+        5000,
+      );
     });
   }, []);
 
@@ -145,6 +162,7 @@ function App() {
               <div className="plan-panel-container">
                 <PlanPanel
                   onGeneratePlan={handleGeneratePlan}
+                  onGenerateDirectPlan={handleGenerateDirectPlan}
                   onSynthesize={handleSynthesize}
                   onTalkToPlan={handleTalkToPlan}
                 />
@@ -154,6 +172,7 @@ function App() {
               <div className="plan-panel-overlay">
                 <PlanPanel
                   onGeneratePlan={handleGeneratePlan}
+                  onGenerateDirectPlan={handleGenerateDirectPlan}
                   onSynthesize={handleSynthesize}
                   onTalkToPlan={handleTalkToPlan}
                 />

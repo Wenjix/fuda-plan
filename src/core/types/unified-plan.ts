@@ -14,7 +14,7 @@ export type ConflictResolution = z.infer<typeof ConflictResolutionSchema>;
 export const UnifiedPlanSchema = z.object({
   id: UUIDSchema,
   sessionId: UUIDSchema,
-  sourcePlanIds: z.array(UUIDSchema).min(3),
+  sourcePlanIds: z.array(UUIDSchema).min(0),
   title: z.string().min(1),
   sections: StructuredPlanSchema,
   conflictsResolved: z.array(ConflictResolutionSchema).default([]),
