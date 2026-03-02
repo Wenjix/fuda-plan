@@ -12,7 +12,8 @@
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper 2>/dev/null || true"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

@@ -54,33 +54,34 @@ export function TerminalDrawer() {
       fitAddon.fit();
     });
 
-    // Prepare backend without connecting, then connect with xterm events
-    const backend = prepareTerminal();
-    backendRef.current = backend;
-
+    // Defer backend connection so React StrictMode's cleanup-remount cycle
+    // cancels the first mount's connect before a WebSocket is ever created.
     const { setConnectionState, setLastExit } = useTerminalStore.getState();
 
-    backend.connect({
-      cols: term.cols,
-      rows: term.rows,
-      events: {
-        onOutput: (data: string) => {
-          term.write(data);
+    const connectTimer = setTimeout(() => {
+      const backend = prepareTerminal();
+      backendRef.current = backend;
+
+      backend.connect({
+        cols: term.cols,
+        rows: term.rows,
+        events: {
+          onOutput: (data: string) => {
+            term.write(data);
+          },
+          onStateChange: (state) => {
+            setConnectionState(state);
+            if (state === 'ready') {
+              probeVibeToolStatus().catch(() => {});
+            }
+          },
+          onExit: (exitCode, signal) => {
+            setLastExit({ exitCode, signal });
+            setConnectionState('disconnected');
+          },
         },
-        onStateChange: (state) => {
-          setConnectionState(state);
-          if (state === 'ready') {
-            probeVibeToolStatus().catch(() => {});
-          }
-        },
-        onExit: (exitCode, signal) => {
-          setLastExit({ exitCode, signal });
-          setConnectionState('disconnected');
-        },
-      },
-    }).catch(() => {
-      // May be rejected by cleanup (React StrictMode double-invoke in dev)
-    });
+      }).catch(() => {});
+    }, 0);
 
     // Wire user input to backend
     const onDataDisposable = term.onData((data) => {
@@ -112,6 +113,7 @@ export function TerminalDrawer() {
     });
 
     return () => {
+      clearTimeout(connectTimer);
       // Disconnect backend — PTY is useless without xterm
       if (backendRef.current) {
         backendRef.current.disconnect();
