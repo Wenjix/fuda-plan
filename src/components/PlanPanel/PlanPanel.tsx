@@ -31,12 +31,14 @@ export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClic
   );
   const totalPromotions = useSemanticStore(s => s.promotions.length);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDirectPlan = useCallback(async () => {
     if (!onGenerateDirectPlan) return;
     setIsGenerating(true);
     try {
       await onGenerateDirectPlan();
+      setIsExpanded(true);
     } finally {
       setIsGenerating(false);
     }
@@ -51,7 +53,16 @@ export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClic
           Lane Plans ({lanePlans.length})
         </span>
         {unifiedPlan && (
-          <span className={styles.tabLabel}>Unified Plan</span>
+          <>
+            <span className={styles.tabLabel}>Unified Plan</span>
+            <button
+              className={styles.expandBtn}
+              onClick={() => setIsExpanded(true)}
+              title="Expand plan to full screen"
+            >
+              Expand
+            </button>
+          </>
         )}
       </div>
 
@@ -140,6 +151,35 @@ export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClic
             onTalkToPlan={onTalkToPlan}
           />
         </>
+      )}
+
+      {/* Fullscreen plan overlay */}
+      {isExpanded && unifiedPlan && (
+        <div className={styles.fullscreenOverlay} onClick={() => setIsExpanded(false)}>
+          <div className={styles.fullscreenPanel} onClick={e => e.stopPropagation()}>
+            <div className={styles.fullscreenHeader}>
+              <h2 className={styles.fullscreenTitle}>{unifiedPlan.title}</h2>
+              <div className={styles.fullscreenActions}>
+                {onTalkToPlan && (
+                  <button className={styles.closeBtn} onClick={onTalkToPlan}>
+                    Talk to Plan
+                  </button>
+                )}
+                <button className={styles.closeBtn} onClick={() => setIsExpanded(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+            <SynthesisPanel
+              status={sessionStatus}
+              lanePlans={lanePlans}
+              unifiedPlan={unifiedPlan}
+              onSynthesize={onSynthesize}
+              onEvidenceClick={onEvidenceClick}
+              onTalkToPlan={onTalkToPlan}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
