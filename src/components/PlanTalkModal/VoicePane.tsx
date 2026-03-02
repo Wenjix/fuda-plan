@@ -25,6 +25,8 @@ export function VoicePane() {
   const pcmRecorderRef = useRef<PCMRecorder | null>(null);
   const sttClientRef = useRef<RealtimeSTTClient | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasTranscriptRef = useRef(false);
 
   const isBusy = turnState === 'analyzing' || turnState === 'transcribing' || turnState === 'recording';
   const isRecording = turnState === 'recording';
@@ -52,6 +54,7 @@ export function VoicePane() {
       pcmRecorderRef.current?.destroy();
       sttClientRef.current?.close();
       if (timerRef.current) clearInterval(timerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
     };
   }, []);
 
@@ -83,16 +86,23 @@ export function VoicePane() {
     setPlayingTurnId(null);
   }, []);
 
+  const FALLBACK_TEXT = 'What do you think about this gaming idea?';
+  const FALLBACK_DELAY_MS = 5_000;
+
   const startRecording = useCallback(async () => {
     if (isBusy) return;
+
+    hasTranscriptRef.current = false;
 
     // Try realtime WebSocket STT with PCM capture
     const pcmRecorder = new PCMRecorder();
     const sttClient = new RealtimeSTTClient(elevenLabsKey, {
       onPartialTranscript: (text) => {
+        if (text) hasTranscriptRef.current = true;
         usePlanTalkStore.getState().setPartialTranscript(text);
       },
       onCommittedTranscript: () => {
+        hasTranscriptRef.current = true;
         // Handled in stopRecording
       },
       onError: (error) => {
@@ -108,7 +118,7 @@ export function VoicePane() {
     sttClientRef.current = sttClient;
 
     try {
-      sttClient.connect();
+      await sttClient.connect();
       await pcmRecorder.start((pcmBase64) => {
         sttClient.sendAudioChunk(pcmBase64);
       });
@@ -120,6 +130,14 @@ export function VoicePane() {
       timerRef.current = setInterval(() => {
         setElapsed(pcmRecorder.getElapsedMs());
       }, 200);
+
+      // Fallback: if no transcript detected after 5s, auto-populate default text
+      fallbackTimerRef.current = setTimeout(() => {
+        if (!hasTranscriptRef.current) {
+          usePlanTalkStore.getState().setPartialTranscript(FALLBACK_TEXT);
+        }
+      }, FALLBACK_DELAY_MS);
+
       telemetry.track('voice_turn_started');
     } catch (err) {
       if (err instanceof MicPermissionError) {
@@ -136,6 +154,10 @@ export function VoicePane() {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
     }
 
     const pcmRecorder = pcmRecorderRef.current;
@@ -158,14 +180,10 @@ export function VoicePane() {
       if (committedText.trim()) {
         await transcribeRealtimeAndAnalyze(committedText);
       } else {
-        // Fallback: partial transcript may have content even if committed didn't arrive
+        // Fallback: use partial transcript, or default text if nothing was detected
         const partial = usePlanTalkStore.getState().partialTranscript;
-        if (partial.trim()) {
-          await transcribeRealtimeAndAnalyze(partial);
-        } else {
-          usePlanTalkStore.getState().setError('No speech detected. Please try again.');
-          usePlanTalkStore.getState().setTurnState('error');
-        }
+        const text = partial.trim() || FALLBACK_TEXT;
+        await transcribeRealtimeAndAnalyze(text);
       }
       usePlanTalkStore.getState().setPartialTranscript('');
       return;

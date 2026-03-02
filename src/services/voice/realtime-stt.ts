@@ -6,13 +6,13 @@ export interface RealtimeSTTCallbacks {
 }
 
 type WSMessage =
-  | { type: 'session_begin' }
-  | { type: 'transcript'; channel: { alternatives: { transcript: string }[] }; is_final: boolean }
-  | { type: 'partial_transcript'; text: string }
-  | { type: 'committed_transcript'; text: string }
-  | { type: 'scribe_error'; message: string }
-  | { type: 'scribe_auth_error'; message: string }
-  | { type: 'scribe_rate_limited_error'; message: string };
+  | { message_type: 'session_started' }
+  | { message_type: 'transcript'; channel: { alternatives: { transcript: string }[] }; is_final: boolean }
+  | { message_type: 'partial_transcript'; text: string }
+  | { message_type: 'committed_transcript'; text: string }
+  | { message_type: 'scribe_error'; message: string }
+  | { message_type: 'scribe_auth_error'; message: string }
+  | { message_type: 'scribe_rate_limited_error'; message: string };
 
 /**
  * ElevenLabs Realtime WebSocket STT client.
@@ -29,7 +29,7 @@ export class RealtimeSTTClient {
     private callbacks: RealtimeSTTCallbacks,
   ) {}
 
-  connect(): void {
+  connect(): Promise<void> {
     this.closed = false;
     this.committedText = '';
 
@@ -38,62 +38,69 @@ export class RealtimeSTTClient {
       language_code: 'en',
       sample_rate: '16000',
       encoding: 'pcm_s16le',
+      token: this.apiKey,
     });
 
     const url = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params}`;
 
-    this.ws = new WebSocket(url);
+    return new Promise<void>((resolve, reject) => {
+      this.ws = new WebSocket(url);
 
-    // Connection timeout: if not open within 10s, treat as error
-    this.connectTimeout = setTimeout(() => {
-      if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
-        this.callbacks.onError('WebSocket connection timed out');
+      // Connection timeout: if session not started within 10s, treat as error
+      this.connectTimeout = setTimeout(() => {
+        const msg = 'WebSocket connection timed out';
+        this.callbacks.onError(msg);
         this.close();
-      }
-    }, 10_000);
+        reject(new Error(msg));
+      }, 10_000);
 
-    this.ws.onopen = () => {
-      if (this.connectTimeout) {
-        clearTimeout(this.connectTimeout);
-        this.connectTimeout = null;
-      }
-      // Send auth message
-      this.ws?.send(JSON.stringify({
-        type: 'authenticate',
-        token: this.apiKey,
-      }));
-    };
+      this.ws.onopen = () => {
+        // Auth is handled via the token query param — no post-connection message needed
+      };
 
-    this.ws.onmessage = (event) => {
-      try {
-        const msg: WSMessage = JSON.parse(event.data as string);
-        this.handleMessage(msg);
-      } catch {
-        // Ignore malformed messages
-      }
-    };
+      this.ws.onmessage = (event) => {
+        try {
+          const msg: WSMessage = JSON.parse(event.data as string);
+          if (msg.message_type === 'session_started') {
+            if (this.connectTimeout) {
+              clearTimeout(this.connectTimeout);
+              this.connectTimeout = null;
+            }
+            this.callbacks.onSessionStarted();
+            resolve();
+          }
+          this.handleMessage(msg);
+        } catch {
+          // Ignore malformed messages
+        }
+      };
 
-    this.ws.onerror = () => {
-      if (!this.closed) {
-        this.callbacks.onError('WebSocket connection error');
-      }
-    };
+      this.ws.onerror = () => {
+        if (!this.closed) {
+          const msg = 'WebSocket connection error';
+          this.callbacks.onError(msg);
+          reject(new Error(msg));
+        }
+      };
 
-    this.ws.onclose = (event) => {
-      if (this.connectTimeout) {
-        clearTimeout(this.connectTimeout);
-        this.connectTimeout = null;
-      }
-      if (!this.closed && event.code !== 1000) {
-        this.callbacks.onError(`WebSocket closed unexpectedly (code ${event.code})`);
-      }
-    };
+      this.ws.onclose = (event) => {
+        if (this.connectTimeout) {
+          clearTimeout(this.connectTimeout);
+          this.connectTimeout = null;
+        }
+        if (!this.closed && event.code !== 1000) {
+          const msg = `WebSocket closed unexpectedly (code ${event.code})`;
+          this.callbacks.onError(msg);
+          reject(new Error(msg));
+        }
+      };
+    });
   }
 
   private handleMessage(msg: WSMessage): void {
-    switch (msg.type) {
-      case 'session_begin':
-        this.callbacks.onSessionStarted();
+    switch (msg.message_type) {
+      case 'session_started':
+        // Already handled in connect() promise resolution
         break;
 
       case 'partial_transcript':
@@ -122,7 +129,7 @@ export class RealtimeSTTClient {
       case 'scribe_error':
       case 'scribe_auth_error':
       case 'scribe_rate_limited_error':
-        this.callbacks.onError(msg.message || `STT error: ${msg.type}`);
+        this.callbacks.onError(msg.message || `STT error: ${msg.message_type}`);
         break;
     }
   }
@@ -130,15 +137,16 @@ export class RealtimeSTTClient {
   sendAudioChunk(pcmBase64: string): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        type: 'input_audio_chunk',
-        data: pcmBase64,
+        message_type: 'input_audio_chunk',
+        audio_base_64: pcmBase64,
+        sample_rate: 16000,
       }));
     }
   }
 
   commit(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'commit' }));
+      this.ws.send(JSON.stringify({ message_type: 'commit' }));
     }
   }
 
