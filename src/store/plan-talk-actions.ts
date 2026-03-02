@@ -12,19 +12,111 @@ import { audioPlayback } from '../services/voice/audio-playback';
 import { telemetry } from '../services/telemetry/collector';
 
 /**
+ * Try to extract a complete "understanding" value from partial JSON.
+ * Walks character-by-character to handle escaped quotes correctly.
+ * Returns the full understanding string if complete, or null.
+ */
+export function tryExtractUnderstanding(accumulated: string): string | null {
+  const keyPattern = '"understanding"';
+  const keyIdx = accumulated.indexOf(keyPattern);
+  if (keyIdx === -1) return null;
+
+  // Find the colon after the key
+  let i = keyIdx + keyPattern.length;
+  while (i < accumulated.length && accumulated[i] !== ':') i++;
+  if (i >= accumulated.length) return null;
+  i++; // skip ':'
+
+  // Skip whitespace
+  while (i < accumulated.length && /\s/.test(accumulated[i])) i++;
+  if (i >= accumulated.length || accumulated[i] !== '"') return null;
+  i++; // skip opening quote
+
+  // Walk through the string value, handling escaped characters
+  let value = '';
+  while (i < accumulated.length) {
+    const ch = accumulated[i];
+    if (ch === '\\') {
+      // Escaped character — include both chars and advance past
+      if (i + 1 >= accumulated.length) return null; // incomplete escape
+      const next = accumulated[i + 1];
+      if (next === '"') value += '"';
+      else if (next === 'n') value += '\n';
+      else if (next === 't') value += '\t';
+      else if (next === '\\') value += '\\';
+      else if (next === '/') value += '/';
+      else value += next;
+      i += 2;
+    } else if (ch === '"') {
+      // Closing quote — value is complete
+      return value;
+    } else {
+      value += ch;
+      i++;
+    }
+  }
+  return null; // string not yet closed
+}
+
+/**
+ * Extract whatever understanding text has streamed so far (may be incomplete).
+ * For progressive display only — does not require the closing quote.
+ */
+export function extractPartialUnderstanding(accumulated: string): string {
+  const keyPattern = '"understanding"';
+  const keyIdx = accumulated.indexOf(keyPattern);
+  if (keyIdx === -1) return '';
+
+  let i = keyIdx + keyPattern.length;
+  while (i < accumulated.length && accumulated[i] !== ':') i++;
+  if (i >= accumulated.length) return '';
+  i++;
+
+  while (i < accumulated.length && /\s/.test(accumulated[i])) i++;
+  if (i >= accumulated.length || accumulated[i] !== '"') return '';
+  i++;
+
+  let value = '';
+  while (i < accumulated.length) {
+    const ch = accumulated[i];
+    if (ch === '\\') {
+      if (i + 1 >= accumulated.length) return value;
+      const next = accumulated[i + 1];
+      if (next === '"') value += '"';
+      else if (next === 'n') value += '\n';
+      else if (next === 't') value += '\t';
+      else if (next === '\\') value += '\\';
+      else if (next === '/') value += '/';
+      else value += next;
+      i += 2;
+    } else if (ch === '"') {
+      return value;
+    } else {
+      value += ch;
+      i++;
+    }
+  }
+  return value;
+}
+
+/**
  * Send user reflection text to AI for analysis against the unified plan.
+ * Uses streaming to progressively display the AI response and start TTS early.
  */
 export async function analyzeReflection(transcriptText: string, source: 'voice' | 'typed' = 'typed'): Promise<void> {
   const store = usePlanTalkStore.getState();
 
   // Guard against concurrent calls (covers all busy states)
-  if (store.turnState === 'analyzing' || store.turnState === 'transcribing' || store.turnState === 'recording') return;
+  if (store.turnState === 'analyzing' || store.turnState === 'streaming' || store.turnState === 'transcribing' || store.turnState === 'recording') return;
 
   const session = useSessionStore.getState().session;
   const unifiedPlan = useSemanticStore.getState().unifiedPlan;
 
   if (!session) throw new Error('No active session');
   if (!unifiedPlan) throw new Error('No unified plan to reflect on');
+
+  // Generate the AI turn ID upfront so onChunk TTS and final addTurn share the same ID
+  const aiTurnId = generateId();
 
   // Add user turn — read fresh state for turnIndex
   const userTurn: PlanTalkTurn = {
@@ -40,6 +132,7 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
   usePlanTalkStore.getState().addTurn(userTurn);
   usePlanTalkStore.getState().setTurnState('analyzing');
   usePlanTalkStore.getState().setError(null);
+  usePlanTalkStore.getState().setStreamingResponse('');
 
   try {
     const settings = await loadSettings();
@@ -49,9 +142,34 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
     // Read fresh turns from store (includes the userTurn we just added)
     const allTurns = usePlanTalkStore.getState().turns;
     const prompt = buildPlanReflectionPrompt(allTurns, unifiedPlan, session.topic);
-    const raw = await provider.generate(prompt);
 
-    // Parse JSON from response
+    let accumulated = '';
+    let ttsStarted = false;
+
+    const raw = await provider.generateStream(prompt, (delta: string) => {
+      accumulated += delta;
+      usePlanTalkStore.getState().setStreamingResponse(accumulated);
+
+      // Transition from 'analyzing' to 'streaming' on first chunk
+      if (usePlanTalkStore.getState().turnState === 'analyzing') {
+        usePlanTalkStore.getState().setTurnState('streaming');
+      }
+
+      // Try to extract the complete understanding field for early TTS
+      if (!ttsStarted) {
+        const understanding = tryExtractUnderstanding(accumulated);
+        if (understanding) {
+          ttsStarted = true;
+          usePlanTalkStore.getState().setUnderstanding(understanding);
+          // Start TTS immediately without waiting for gap cards/edits
+          if (settings.voiceTtsEnabled && settings.elevenLabsApiKey) {
+            generateTts(aiTurnId, understanding, settings.elevenLabsApiKey, settings.voiceTtsVoiceId, settings.voiceAutoPlayAi);
+          }
+        }
+      }
+    });
+
+    // Parse full JSON from completed response
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in AI response');
 
@@ -60,14 +178,15 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
     if (!result.success) {
       usePlanTalkStore.getState().setError('Could not generate structured edits this turn. Please try again.');
       usePlanTalkStore.getState().setTurnState('error');
+      usePlanTalkStore.getState().setStreamingResponse('');
       return;
     }
 
     const data = result.data;
 
-    // Add AI turn — read fresh state for turnIndex
+    // Add AI turn with the pre-generated ID
     const aiTurn: PlanTalkTurn = {
-      id: generateId(),
+      id: aiTurnId,
       sessionId: session.id,
       unifiedPlanId: unifiedPlan.id,
       turnIndex: usePlanTalkStore.getState().turns.length,
@@ -83,16 +202,18 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
     usePlanTalkStore.getState().setPendingEdits(data.proposedEdits);
     usePlanTalkStore.getState().setUnresolvedQuestions(data.unresolvedQuestions);
     usePlanTalkStore.getState().setTurnState('responded');
+    usePlanTalkStore.getState().setStreamingResponse('');
 
     telemetry.track('voice_turn_completed', { source, turnId: aiTurn.id });
 
-    // Fire-and-forget TTS (non-blocking)
-    if (settings.voiceTtsEnabled && settings.elevenLabsApiKey) {
+    // If TTS wasn't started during streaming (understanding extraction failed), start it now
+    if (!ttsStarted && settings.voiceTtsEnabled && settings.elevenLabsApiKey) {
       generateTts(aiTurn.id, data.understanding, settings.elevenLabsApiKey, settings.voiceTtsVoiceId, settings.voiceAutoPlayAi);
     }
   } catch (err) {
     usePlanTalkStore.getState().setError(err instanceof Error ? err.message : 'Analysis failed');
     usePlanTalkStore.getState().setTurnState('error');
+    usePlanTalkStore.getState().setStreamingResponse('');
     telemetry.track('voice_turn_failed', { source, error: err instanceof Error ? err.message : 'unknown' });
   }
 }

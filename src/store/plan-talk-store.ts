@@ -11,6 +11,7 @@ interface PlanTalkState {
   unresolvedQuestions: string[];
   error: string | null;
   partialTranscript: string;
+  streamingResponse: string;
   ttsAudioBlobs: Record<string, Blob>;
   ttsTurnStatus: Record<string, 'loading' | 'ready' | 'failed'>;
 
@@ -25,6 +26,7 @@ interface PlanTalkState {
   updateEditStatus: (editId: string, approved: boolean) => void;
   setError: (error: string | null) => void;
   setPartialTranscript: (text: string) => void;
+  setStreamingResponse: (text: string) => void;
   setTtsBlob: (turnId: string, blob: Blob) => void;
   setTtsTurnStatus: (turnId: string, status: 'loading' | 'ready' | 'failed') => void;
   clear: () => void;
@@ -41,6 +43,7 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
   unresolvedQuestions: [],
   error: null,
   partialTranscript: '',
+  streamingResponse: '',
   ttsAudioBlobs: {},
   ttsTurnStatus: {},
 
@@ -60,6 +63,7 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
     })),
   setError: (error) => set({ error }),
   setPartialTranscript: (partialTranscript) => set({ partialTranscript }),
+  setStreamingResponse: (streamingResponse) => set({ streamingResponse }),
   setTtsBlob: (turnId, blob) =>
     set((s) => ({ ttsAudioBlobs: { ...s.ttsAudioBlobs, [turnId]: blob } })),
   setTtsTurnStatus: (turnId, status) =>
@@ -74,6 +78,7 @@ export const usePlanTalkStore = create<PlanTalkState>()((set) => ({
       unresolvedQuestions: [],
       error: null,
       partialTranscript: '',
+      streamingResponse: '',
       ttsAudioBlobs: {},
       ttsTurnStatus: {},
     }),

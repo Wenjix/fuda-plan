@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { usePlanTalkStore } from '../../store/plan-talk-store';
-import { analyzeReflection, transcribeAndAnalyze, transcribeRealtimeAndAnalyze } from '../../store/plan-talk-actions';
+import { analyzeReflection, transcribeAndAnalyze, transcribeRealtimeAndAnalyze, extractPartialUnderstanding } from '../../store/plan-talk-actions';
 import { loadSettings } from '../../persistence/settings-store';
 import { VoiceRecorder, PCMRecorder, MicPermissionError } from '../../services/voice/media-recorder';
 import { RealtimeSTTClient } from '../../services/voice/realtime-stt';
@@ -12,6 +12,7 @@ export function VoicePane() {
   const turns = usePlanTalkStore((s) => s.turns);
   const turnState = usePlanTalkStore((s) => s.turnState);
   const partialTranscript = usePlanTalkStore((s) => s.partialTranscript);
+  const streamingResponse = usePlanTalkStore((s) => s.streamingResponse);
   const ttsAudioBlobs = usePlanTalkStore((s) => s.ttsAudioBlobs);
   const ttsTurnStatus = usePlanTalkStore((s) => s.ttsTurnStatus);
   const [input, setInput] = useState('');
@@ -28,7 +29,7 @@ export function VoicePane() {
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTranscriptRef = useRef(false);
 
-  const isBusy = turnState === 'analyzing' || turnState === 'transcribing' || turnState === 'recording';
+  const isBusy = turnState === 'analyzing' || turnState === 'streaming' || turnState === 'transcribing' || turnState === 'recording';
   const isRecording = turnState === 'recording';
   const micAvailable = !!elevenLabsKey && !micDenied;
 
@@ -40,12 +41,12 @@ export function VoicePane() {
     });
   }, []);
 
-  // Auto-scroll on new turns
+  // Auto-scroll on new turns and streaming updates
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [turns.length, turnState]);
+  }, [turns.length, turnState, streamingResponse]);
 
   // Cleanup recorders on unmount
   useEffect(() => {
@@ -86,8 +87,8 @@ export function VoicePane() {
     setPlayingTurnId(null);
   }, []);
 
-  const FALLBACK_TEXT = 'What do you think about this gaming idea?';
-  const FALLBACK_DELAY_MS = 5_000;
+  const FALLBACK_TEXT = 'I think the plan looks good overall but could use more detail.';
+  const FALLBACK_DELAY_MS = 3_000;
 
   const startRecording = useCallback(async () => {
     if (isBusy) return;
@@ -291,9 +292,20 @@ export function VoicePane() {
           </div>
         ))}
         {turnState === 'analyzing' && (
-          <div className={styles.analyzing} role="status" aria-label="Analyzing your reflection">
+          <div className={styles.analyzing} role="status" aria-label="Thinking">
             <div className={styles.spinner} />
-            <span className={styles.analyzingText}>Analyzing your reflection...</span>
+            <span className={styles.analyzingText}>Thinking...</span>
+          </div>
+        )}
+        {turnState === 'streaming' && streamingResponse && (
+          <div
+            className={`${styles.turnBubble} ${styles.turnAi}`}
+            role="status"
+            aria-label="AI response streaming"
+          >
+            <div className={styles.turnLabel}>ai</div>
+            {extractPartialUnderstanding(streamingResponse)}
+            <span className={styles.streamCursor}>|</span>
           </div>
         )}
       </div>

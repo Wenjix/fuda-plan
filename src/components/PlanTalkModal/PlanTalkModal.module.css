@@ -606,3 +606,16 @@
   background: rgba(239, 68, 68, 0.15);
   color: var(--severity-high, #ef4444);
 }
+
+/* Streaming cursor */
+.streamCursor {
+  display: inline;
+  animation: blink 1s step-end infinite;
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

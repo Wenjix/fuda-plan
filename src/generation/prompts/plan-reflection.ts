@@ -96,6 +96,8 @@ Return JSON matching this exact schema:
   "unresolvedQuestions": ["..."]
 }
 
+IMPORTANT: In your JSON response, output the "understanding" field FIRST before gapCards and proposedEdits.
+
 Ensure JSON is valid. Every gap card must reference a real sectionKey from the plan.`);
 
   return sections.join('\n');

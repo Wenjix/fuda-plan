@@ -9,6 +9,7 @@ export const PlanTalkTurnStateSchema = z.enum([
   'recording',
   'transcribing',
   'analyzing',
+  'streaming',
   'responded',
   'error',
 ]);
