@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import type { SessionStatus } from '../../core/types';
 import { useSemanticStore } from '../../store/semantic-store';
 import { useSessionStore } from '../../store/session-store';
@@ -13,7 +14,7 @@ const SYNTHESIS_STATUSES: ReadonlySet<SessionStatus> = new Set([
 
 interface PlanPanelProps {
   onGeneratePlan: (laneId: string) => void;
-  onGenerateDirectPlan?: () => void;
+  onGenerateDirectPlan?: () => Promise<void>;
   onEvidenceClick?: (nodeId: string) => void;
   onSynthesize?: () => Promise<void>;
   onTalkToPlan?: () => void;
@@ -29,6 +30,17 @@ export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClic
     s.promotions.filter(p => p.laneId === activeLaneId).length,
   );
   const totalPromotions = useSemanticStore(s => s.promotions.length);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleDirectPlan = useCallback(async () => {
+    if (!onGenerateDirectPlan) return;
+    setIsGenerating(true);
+    try {
+      await onGenerateDirectPlan();
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [onGenerateDirectPlan]);
 
   const showSynthesis = SYNTHESIS_STATUSES.has(sessionStatus);
 
@@ -94,15 +106,24 @@ export function PlanPanel({ onGeneratePlan, onGenerateDirectPlan, onEvidenceClic
       {totalPromotions >= 3 && !unifiedPlan && onGenerateDirectPlan && (
         <div className={styles.directPlan}>
           <div className={styles.divider} />
-          <p className={styles.directPlanText}>
-            {totalPromotions} promoted node{totalPromotions !== 1 ? 's' : ''} across all lanes
-          </p>
-          <button
-            className={styles.directPlanBtn}
-            onClick={onGenerateDirectPlan}
-          >
-            Generate Plan
-          </button>
+          {isGenerating ? (
+            <>
+              <div className={styles.spinner} />
+              <p className={styles.directPlanText}>Generating plan...</p>
+            </>
+          ) : (
+            <>
+              <p className={styles.directPlanText}>
+                {totalPromotions} promoted node{totalPromotions !== 1 ? 's' : ''} across all lanes
+              </p>
+              <button
+                className={styles.directPlanBtn}
+                onClick={() => void handleDirectPlan()}
+              >
+                Generate Plan
+              </button>
+            </>
+          )}
         </div>
       )}
 

@@ -85,15 +85,17 @@ function App() {
     });
   }, []);
 
-  const handleGenerateDirectPlan = useCallback(() => {
-    generateDirectPlan().catch((err) => {
+  const handleGenerateDirectPlan = useCallback(async () => {
+    try {
+      await generateDirectPlan();
+    } catch (err) {
       console.error('Failed to generate direct plan:', err);
       useToastStore.getState().addToast(
-        `Plan generation failed: ${err.message}`,
+        `Plan generation failed: ${(err as Error).message}`,
         'error',
         5000,
       );
-    });
+    }
   }, []);
 
   const handleSynthesize = useCallback(async () => {

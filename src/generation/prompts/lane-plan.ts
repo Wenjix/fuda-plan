@@ -34,7 +34,12 @@ export function buildLanePlanPrompt(
 
   sections.push('[TASK]');
   sections.push(`Generate a structured plan based on the promoted evidence above.
-Each section must include evidence citations referencing the source nodes by their ID.
+
+IMPORTANT CONSTRAINTS:
+- Be concise. Each content string should be 1-2 sentences max.
+- Keep quotes under 10 words — just enough to identify the source.
+- Aim for 1-3 items per section, not more.
+- Use the exact nodeId and laneId from the evidence nodes above.
 
 Return JSON matching this exact schema:
 {
@@ -46,7 +51,7 @@ Return JSON matching this exact schema:
   "nextActions": [{ "heading": "...", "content": ["..."], "evidence": [...] }]
 }
 
-Ensure JSON is valid. Every section must have at least one evidence citation.`);
+Return ONLY valid JSON. No markdown, no explanation.`);
 
   return sections.join('\n');
 }
@@ -83,9 +88,14 @@ export function buildDirectPlanPrompt(
   }
 
   sections.push('[TASK]');
-  sections.push(`Generate a unified structured plan based on ALL the promoted evidence above.
-This evidence comes from multiple exploration lanes — synthesize insights across all of them.
-Each section must include evidence citations referencing the source nodes by their ID.
+  sections.push(`Take the best ideas from each promoted node and synthesize them into one actionable plan.
+Prioritize the strongest insights. Combine complementary ideas. Resolve contradictions.
+
+IMPORTANT CONSTRAINTS:
+- Be concise. Each content string should be 1-2 sentences max.
+- Keep quotes under 10 words — just enough to identify the source.
+- Aim for 1-3 items per section, not more.
+- Use the exact nodeId and laneId from the evidence nodes above.
 
 Return JSON matching this exact schema:
 {
@@ -97,7 +107,7 @@ Return JSON matching this exact schema:
   "nextActions": [{ "heading": "...", "content": ["..."], "evidence": [...] }]
 }
 
-Ensure JSON is valid. Every section must have at least one evidence citation.`);
+Return ONLY valid JSON. No markdown, no explanation.`);
 
   return sections.join('\n');
 }
