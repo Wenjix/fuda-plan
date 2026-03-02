@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { useViewStore } from '../../store/view-store';
 import { useTerminalStore } from '../../store/terminal-store';
-import { prepareTerminal, endTerminalSession, getActiveBackend, probeVibeToolStatus } from '../../store/terminal-actions';
+import { prepareTerminal, endTerminalSession, setActiveBackend, getActiveBackend, probeVibeToolStatus } from '../../store/terminal-actions';
 import type { ITerminalBackend } from '../../services/terminal-backend';
 import { buildXtermTheme } from './xterm-theme';
 import { TerminalSetupNotice } from './TerminalSetupNotice';
@@ -110,6 +110,12 @@ export function TerminalDrawer() {
     });
 
     return () => {
+      // Disconnect backend — PTY is useless without xterm
+      if (backendRef.current) {
+        backendRef.current.disconnect();
+        setActiveBackend(null);
+        backendRef.current = null;
+      }
       themeObserver.disconnect();
       resizeObserver.disconnect();
       onDataDisposable.dispose();

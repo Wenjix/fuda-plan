@@ -18,17 +18,15 @@ export function setActiveBackend(backend: ITerminalBackend | null): void {
 }
 
 /**
- * Prepare the terminal drawer for opening. Creates a backend and session
+ * Prepare the terminal drawer for opening. Creates a fresh backend and session
  * but does NOT connect — the caller provides events and connects.
+ * Always creates a fresh backend so the caller can wire its own events.
  */
 export function prepareTerminal(): ITerminalBackend {
   useViewStore.getState().setTerminalOpen(true);
 
-  if (activeBackend && useTerminalStore.getState().connectionState === 'ready') {
-    return activeBackend;
-  }
-
-  // If there's a stale backend, clean it up
+  // Always clean up any existing backend so the caller
+  // can connect with its own events (e.g. xterm output wiring)
   if (activeBackend) {
     activeBackend.disconnect();
     activeBackend = null;
@@ -49,12 +47,12 @@ export function prepareTerminal(): ITerminalBackend {
  * use prepareTerminal() + backend.connect() directly instead.
  */
 export function openTerminal(cols: number, rows: number, events?: TerminalBackendEvents): ITerminalBackend {
-  const backend = prepareTerminal();
-
-  // If already connected, skip reconnecting
-  if (useTerminalStore.getState().connectionState === 'ready') {
-    return backend;
+  // If already connected, return existing backend (idempotent)
+  if (activeBackend && useTerminalStore.getState().connectionState === 'ready') {
+    return activeBackend;
   }
+
+  const backend = prepareTerminal();
 
   backend.connect({
     cols,
@@ -84,14 +82,15 @@ export function closeTerminal(): void {
 
 /**
  * Toggle terminal open/closed.
+ * Does NOT create or connect a backend — TerminalDrawer handles that.
  */
-export function toggleTerminal(cols?: number, rows?: number): ITerminalBackend | null {
+export function toggleTerminal(): void {
   const { terminalOpen } = useViewStore.getState();
   if (terminalOpen) {
     closeTerminal();
-    return activeBackend;
+  } else {
+    useViewStore.getState().setTerminalOpen(true);
   }
-  return openTerminal(cols ?? 80, rows ?? 24);
 }
 
 /**

@@ -77,22 +77,17 @@ describe('Terminal workflow integration', () => {
   // -------------------------------------------------------------------------
   // 3. toggleTerminal opens when closed, closes when open
   // -------------------------------------------------------------------------
-  it('toggleTerminal opens when closed and closes when open', async () => {
+  it('toggleTerminal opens when closed and closes when open', () => {
     // Initially closed
     expect(useViewStore.getState().terminalOpen).toBe(false);
 
-    // Toggle open
-    const backend = toggleTerminal(80, 24);
+    // Toggle open — only sets terminalOpen, does NOT create backend
+    toggleTerminal();
     expect(useViewStore.getState().terminalOpen).toBe(true);
-    expect(backend).toBeDefined();
 
-    await waitForConnect();
-
-    // Toggle closed (does NOT kill backend)
+    // Toggle closed
     toggleTerminal();
     expect(useViewStore.getState().terminalOpen).toBe(false);
-    // Backend should still exist — closeTerminal doesn't destroy it
-    expect(getActiveBackend()).not.toBeNull();
   });
 
   // -------------------------------------------------------------------------
