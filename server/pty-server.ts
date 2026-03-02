@@ -117,19 +117,30 @@ wss.on('connection', (ws: WebSocket) => {
             return;
           }
           const shell = process.env.SHELL || '/bin/zsh';
+          const cwd = msg.cwd || process.env.HOME || '/';
           // Build env for the PTY, mapping VITE_MISTRAL_API_KEY → MISTRAL_API_KEY
           // so that `vibe` CLI can find the key regardless of which name was used
           const ptyEnv = { ...process.env } as Record<string, string>;
           if (!ptyEnv.MISTRAL_API_KEY && ptyEnv.VITE_MISTRAL_API_KEY) {
             ptyEnv.MISTRAL_API_KEY = ptyEnv.VITE_MISTRAL_API_KEY;
           }
-          pty = ptySpawn(shell, [], {
-            name: 'xterm-256color',
-            cols: msg.cols ?? 80,
-            rows: msg.rows ?? 24,
-            cwd: msg.cwd || process.env.HOME || '/',
-            env: ptyEnv,
-          });
+          try {
+            pty = ptySpawn(shell, [], {
+              name: 'xterm-256color',
+              cols: msg.cols ?? 80,
+              rows: msg.rows ?? 24,
+              cwd,
+              env: ptyEnv,
+            });
+          } catch (spawnErr) {
+            const errMsg = spawnErr instanceof Error ? spawnErr.message : 'Unknown error';
+            console.error(`[PTY] Failed to spawn "${shell}" in "${cwd}":`, errMsg);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: `Failed to spawn shell "${shell}": ${errMsg}`,
+            }));
+            return;
+          }
 
           pty.onData((data: string) => {
             if (ws.readyState === WebSocket.OPEN) {

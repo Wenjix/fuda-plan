@@ -23,6 +23,7 @@ export class WebSocketPtyBackend implements ITerminalBackend {
   private ws: WebSocket | null = null;
   private events: TerminalBackendEvents | null = null;
   private pendingProbes = new Map<string, PendingProbe>();
+  private connectReject: ((err: Error) => void) | null = null;
   private url: string;
 
   constructor(url?: string) {
@@ -43,10 +44,12 @@ export class WebSocketPtyBackend implements ITerminalBackend {
     this.setState('connecting');
 
     return new Promise<void>((resolve, reject) => {
+      this.connectReject = reject;
       const ws = new WebSocket(this.url);
       this.ws = ws;
 
       ws.onopen = () => {
+        this.connectReject = null;
         ws.send(JSON.stringify({
           type: 'spawn',
           cols: opts.cols,
@@ -65,9 +68,11 @@ export class WebSocketPtyBackend implements ITerminalBackend {
 
       ws.onerror = () => {
         if (this.ws === ws) {
+          this.connectReject = null;
           this.setState('error');
+          reject(new Error('WebSocket connection failed'));
         }
-        reject(new Error('WebSocket connection failed'));
+        // If this.ws !== ws, disconnect() already rejected via connectReject
       };
 
       ws.onclose = () => {
@@ -94,6 +99,12 @@ export class WebSocketPtyBackend implements ITerminalBackend {
   }
 
   disconnect(): void {
+    // Reject pending connect promise if still in progress
+    if (this.connectReject) {
+      this.connectReject(new Error('Disconnected'));
+      this.connectReject = null;
+    }
+
     // Clear all pending probes
     for (const [, pending] of this.pendingProbes) {
       clearTimeout(pending.timer);
@@ -102,8 +113,11 @@ export class WebSocketPtyBackend implements ITerminalBackend {
     this.pendingProbes.clear();
 
     if (this.ws) {
-      this.ws.close();
+      // Null the ref BEFORE closing so onerror/onclose handlers
+      // see a stale WS and don't fire state transitions
+      const ws = this.ws;
       this.ws = null;
+      ws.close();
     }
     this.setState('disconnected');
     this.events = null;

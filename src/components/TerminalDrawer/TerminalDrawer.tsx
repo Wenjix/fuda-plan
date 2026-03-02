@@ -78,6 +78,8 @@ export function TerminalDrawer() {
           setConnectionState('disconnected');
         },
       },
+    }).catch(() => {
+      // May be rejected by cleanup (React StrictMode double-invoke in dev)
     });
 
     // Wire user input to backend
@@ -192,7 +194,7 @@ export function TerminalDrawer() {
             useTerminalStore.getState().setConnectionState('disconnected');
           },
         },
-      });
+      }).catch(() => {});
       backendRef.current = backend;
     }
   }, []);
