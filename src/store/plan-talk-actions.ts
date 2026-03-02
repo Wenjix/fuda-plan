@@ -98,7 +98,23 @@ export async function analyzeReflection(transcriptText: string, source: 'voice' 
 }
 
 /**
+ * Accept a committed transcript from realtime WebSocket STT and analyze it.
+ * Skips blob upload — text comes directly from the WebSocket.
+ */
+export async function transcribeRealtimeAndAnalyze(transcriptText: string): Promise<void> {
+  const text = transcriptText.trim();
+  if (!text) {
+    usePlanTalkStore.getState().setError('No speech detected. Please try again.');
+    usePlanTalkStore.getState().setTurnState('error');
+    return;
+  }
+  usePlanTalkStore.getState().setPartialTranscript('');
+  await analyzeReflection(text, 'voice');
+}
+
+/**
  * Record audio, transcribe via ElevenLabs STT, then analyze.
+ * Kept as fallback if WebSocket STT is unavailable.
  */
 export async function transcribeAndAnalyze(audioBlob: Blob, apiKey: string): Promise<void> {
   usePlanTalkStore.getState().setTurnState('transcribing');

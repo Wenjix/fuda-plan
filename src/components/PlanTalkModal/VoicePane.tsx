@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { usePlanTalkStore } from '../../store/plan-talk-store';
-import { analyzeReflection, transcribeAndAnalyze } from '../../store/plan-talk-actions';
+import { analyzeReflection, transcribeAndAnalyze, transcribeRealtimeAndAnalyze } from '../../store/plan-talk-actions';
 import { loadSettings } from '../../persistence/settings-store';
-import { VoiceRecorder, MicPermissionError } from '../../services/voice/media-recorder';
+import { VoiceRecorder, PCMRecorder, MicPermissionError } from '../../services/voice/media-recorder';
+import { RealtimeSTTClient } from '../../services/voice/realtime-stt';
 import { audioPlayback } from '../../services/voice/audio-playback';
 import { telemetry } from '../../services/telemetry/collector';
 import styles from './PlanTalkModal.module.css';
@@ -10,6 +11,7 @@ import styles from './PlanTalkModal.module.css';
 export function VoicePane() {
   const turns = usePlanTalkStore((s) => s.turns);
   const turnState = usePlanTalkStore((s) => s.turnState);
+  const partialTranscript = usePlanTalkStore((s) => s.partialTranscript);
   const ttsAudioBlobs = usePlanTalkStore((s) => s.ttsAudioBlobs);
   const ttsTurnStatus = usePlanTalkStore((s) => s.ttsTurnStatus);
   const [input, setInput] = useState('');
@@ -20,6 +22,8 @@ export function VoicePane() {
   const [playingTurnId, setPlayingTurnId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<VoiceRecorder | null>(null);
+  const pcmRecorderRef = useRef<PCMRecorder | null>(null);
+  const sttClientRef = useRef<RealtimeSTTClient | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isBusy = turnState === 'analyzing' || turnState === 'transcribing' || turnState === 'recording';
@@ -41,10 +45,12 @@ export function VoicePane() {
     }
   }, [turns.length, turnState]);
 
-  // Cleanup recorder on unmount
+  // Cleanup recorders on unmount
   useEffect(() => {
     return () => {
       recorderRef.current?.destroy();
+      pcmRecorderRef.current?.destroy();
+      sttClientRef.current?.close();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -79,33 +85,95 @@ export function VoicePane() {
 
   const startRecording = useCallback(async () => {
     if (isBusy) return;
-    const recorder = new VoiceRecorder();
-    recorderRef.current = recorder;
+
+    // Try realtime WebSocket STT with PCM capture
+    const pcmRecorder = new PCMRecorder();
+    const sttClient = new RealtimeSTTClient(elevenLabsKey, {
+      onPartialTranscript: (text) => {
+        usePlanTalkStore.getState().setPartialTranscript(text);
+      },
+      onCommittedTranscript: () => {
+        // Handled in stopRecording
+      },
+      onError: (error) => {
+        // On WebSocket error during recording, fall back to batch STT
+        console.warn('Realtime STT error, will fall back to batch:', error);
+      },
+      onSessionStarted: () => {
+        telemetry.track('realtime_stt_session_started');
+      },
+    });
+
+    pcmRecorderRef.current = pcmRecorder;
+    sttClientRef.current = sttClient;
+
     try {
-      await recorder.start();
+      sttClient.connect();
+      await pcmRecorder.start((pcmBase64) => {
+        sttClient.sendAudioChunk(pcmBase64);
+      });
+
       usePlanTalkStore.getState().setTurnState('recording');
       usePlanTalkStore.getState().setError(null);
+      usePlanTalkStore.getState().setPartialTranscript('');
       setElapsed(0);
       timerRef.current = setInterval(() => {
-        setElapsed(recorder.getElapsedMs());
+        setElapsed(pcmRecorder.getElapsedMs());
       }, 200);
       telemetry.track('voice_turn_started');
     } catch (err) {
       if (err instanceof MicPermissionError) {
         setMicDenied(true);
       }
-      recorder.destroy();
-      recorderRef.current = null;
+      pcmRecorder.destroy();
+      sttClient.close();
+      pcmRecorderRef.current = null;
+      sttClientRef.current = null;
     }
-  }, [isBusy]);
+  }, [isBusy, elevenLabsKey]);
 
   const stopRecording = useCallback(async () => {
-    const recorder = recorderRef.current;
-    if (!recorder || !recorder.isRecording()) return;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+
+    const pcmRecorder = pcmRecorderRef.current;
+    const sttClient = sttClientRef.current;
+
+    if (pcmRecorder && sttClient) {
+      // Realtime path: stop PCM capture, commit, use committed transcript
+      pcmRecorder.stop();
+      sttClient.commit();
+
+      // Give a brief moment for any final committed_transcript message
+      await new Promise((r) => setTimeout(r, 500));
+
+      const committedText = sttClient.getCommittedText();
+      pcmRecorder.destroy();
+      sttClient.close();
+      pcmRecorderRef.current = null;
+      sttClientRef.current = null;
+
+      if (committedText.trim()) {
+        await transcribeRealtimeAndAnalyze(committedText);
+      } else {
+        // Fallback: partial transcript may have content even if committed didn't arrive
+        const partial = usePlanTalkStore.getState().partialTranscript;
+        if (partial.trim()) {
+          await transcribeRealtimeAndAnalyze(partial);
+        } else {
+          usePlanTalkStore.getState().setError('No speech detected. Please try again.');
+          usePlanTalkStore.getState().setTurnState('error');
+        }
+      }
+      usePlanTalkStore.getState().setPartialTranscript('');
+      return;
+    }
+
+    // Legacy fallback with VoiceRecorder + batch STT
+    const recorder = recorderRef.current;
+    if (!recorder || !recorder.isRecording()) return;
 
     try {
       const blob = await recorder.stop();
@@ -211,6 +279,12 @@ export function VoicePane() {
           </div>
         )}
       </div>
+
+      {isRecording && partialTranscript && (
+        <div className={styles.partialTranscript}>
+          {partialTranscript}
+        </div>
+      )}
 
       {turnState === 'transcribing' && (
         <div className={styles.transcribingBar}>

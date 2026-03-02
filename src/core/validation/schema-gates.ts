@@ -121,9 +121,13 @@ export function parseJSON(raw: string): { success: boolean; data?: unknown; erro
     const data = JSON.parse(raw)
     return { success: true, data }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Invalid JSON'
+    const isTruncated = /unexpected end|expected\s.*after/i.test(msg)
     return {
       success: false,
-      error: e instanceof Error ? e.message : 'Invalid JSON',
+      error: isTruncated
+        ? 'AI response was truncated (incomplete JSON). Try with fewer promoted nodes.'
+        : msg,
     }
   }
 }

@@ -23,6 +23,10 @@ export class ElevenLabsTTSError extends Error {
  * Returns the transcript text.
  */
 export async function transcribeAudio(audioBlob: Blob, apiKey: string): Promise<string> {
+  if (!audioBlob || audioBlob.size === 0) {
+    throw new ElevenLabsSTTError('No audio recorded');
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -39,9 +43,16 @@ export async function transcribeAudio(audioBlob: Blob, apiKey: string): Promise<
     });
 
     if (!res.ok) {
+      let detail = '';
+      try {
+        const errBody = await res.json();
+        detail = errBody?.detail?.message ?? errBody?.detail ?? JSON.stringify(errBody);
+      } catch {
+        detail = await res.text().catch(() => '');
+      }
       if (res.status === 401) throw new ElevenLabsSTTError('Invalid ElevenLabs API key', 401);
       if (res.status === 429) throw new ElevenLabsSTTError('Rate limit exceeded, try again shortly', 429);
-      throw new ElevenLabsSTTError(`ElevenLabs service error (${res.status})`, res.status);
+      throw new ElevenLabsSTTError(`ElevenLabs STT error (${res.status}): ${detail}`, res.status);
     }
 
     const data: { text: string } = await res.json();
@@ -93,9 +104,16 @@ export async function textToSpeech(
     );
 
     if (!res.ok) {
+      let detail = '';
+      try {
+        const errBody = await res.json();
+        detail = errBody?.detail?.message ?? errBody?.detail ?? JSON.stringify(errBody);
+      } catch {
+        detail = await res.text().catch(() => '');
+      }
       if (res.status === 401) throw new ElevenLabsTTSError('Invalid ElevenLabs API key', 401);
       if (res.status === 429) throw new ElevenLabsTTSError('Rate limit exceeded, try again shortly', 429);
-      throw new ElevenLabsTTSError(`ElevenLabs TTS error (${res.status})`, res.status);
+      throw new ElevenLabsTTSError(`ElevenLabs TTS error (${res.status}): ${detail}`, res.status);
     }
 
     return await res.blob();
